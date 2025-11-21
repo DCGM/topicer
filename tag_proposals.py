@@ -51,10 +51,10 @@ class TagProposal:
     def __init__(self, config_file: str):
         pass
 
-    def propose_tags(self, text: TextChunk, tag: list[Tag]) -> TextChunkWithTags:
+    async def propose_tags(self, text: TextChunk, tag: list[Tag]) -> TextChunkWithTags:
         pass
 
-    def propose_tags_in_db(self, tag: Tag,  db_request: DBRequest) -> list[TextChunkWithTags]:
+    async def propose_tags_in_db(self, tag: Tag,  db_request: DBRequest) -> list[TextChunkWithTags]:
         """
 
         """
