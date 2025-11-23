@@ -1,0 +1,6 @@
+weaviate:
+    host: "host"
+    port: "port"
+openai:
+    api_key: "api_key"
+    model: "openai-model"
