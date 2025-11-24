@@ -1,0 +1,17 @@
+# --- SSH TUNNEL CONFIG ---
+
+# Username on the remote server
+SSH_USER="xjuric31"
+
+# Address of the remote server
+SSH_SERVER="semant.cz"
+
+# First tunnel: LOCAL_PORT:TARGET_HOST:TARGET_PORT
+TUNNEL_1_LOCAL="9000"
+TUNNEL_1_TARGET_HOST="localhost"
+TUNNEL_1_TARGET_PORT="8080"
+
+# Second tunnel: LOCAL_PORT:TARGET_HOST:TARGET_PORT
+TUNNEL_2_LOCAL="50055"
+TUNNEL_2_TARGET_HOST="localhost"
+TUNNEL_2_TARGET_PORT="50051"

@@ -1,0 +1,3 @@
+a: str
+
+print(a)
