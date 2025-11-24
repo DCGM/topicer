@@ -1,17 +1,17 @@
-# --- KONFIGURACE SSH TUNELU ---
+# --- SSH TUNNEL CONFIG ---
 
-# Uživatelské jméno na vzdáleném serveru
+# Username on the remote server
 SSH_USER="xjuric31"
 
-# Adresa vzdáleného serveru
+# Address of the remote server
 SSH_SERVER="semant.cz"
 
-# První tunel: LOKÁLNÍ_PORT:CÍLOVÁ_HOST:CÍLOVÝ_PORT
+# First tunnel: LOCAL_PORT:TARGET_HOST:TARGET_PORT
 TUNNEL_1_LOCAL="9000"
 TUNNEL_1_TARGET_HOST="localhost"
 TUNNEL_1_TARGET_PORT="8080"
 
-# Druhý tunel: LOKÁLNÍ_PORT:CÍLOVÁ_HOST:CÍLOVÝ_PORT
+# Second tunnel: LOCAL_PORT:TARGET_HOST:TARGET_PORT
 TUNNEL_2_LOCAL="50055"
 TUNNEL_2_TARGET_HOST="localhost"
 TUNNEL_2_TARGET_PORT="50051"
