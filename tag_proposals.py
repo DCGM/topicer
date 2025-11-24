@@ -3,7 +3,28 @@ import json
 from typing import List
 from uuid import UUID
 from pydantic import BaseModel
+from dotenv import load_dotenv
+import os
+from openai import OpenAI
+import weaviate
 
+load_dotenv()
+
+API_KEY = os.getenv("OPENAI_API_KEY")
+
+print("API Key loaded" if API_KEY is not None else "API Key not found")
+
+open_ai_client = OpenAI(
+    api_key=API_KEY,
+)
+
+weaviate_client = weaviate.connect_to_local(
+    host="localhost",
+    port=9000,
+    grpc_port=50055
+)
+
+print(weaviate_client.is_ready())
 
 class TextWithSpan(BaseModel):
     text: str
