@@ -36,6 +36,9 @@ class LLMTagSpanProposal(BaseModel):
     span_end: int
     confidence: float | None = None
     reason: str | None = None
+    
+class LLMTagSpanProposals(BaseModel):
+    proposals: list[LLMTagSpanProposal]
 
 
 class TagSpanProposal(LLMTagSpanProposal):
@@ -81,7 +84,7 @@ class TagProposal:
             model=self.config.openai_cfg.get('model', 'gpt-5-mini'),
             instructions=instructions,
             input=input,
-            text_format=LLMTagSpanProposal,
+            text_format=LLMTagSpanProposals,
             reasoning={
                 "effort":self.config.openai_cfg.get('reasoning', 'medium')
             }
