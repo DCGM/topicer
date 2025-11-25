@@ -48,8 +48,13 @@ class TagProposal:
                 "effort":self.config.openai_cfg.get('reasoning', 'medium')
             }
         )
-        print(response.output_text)
-        return TextChunkWithTagSpanProposals(id=text_chunk.id, text=text_chunk.text, tag_span_proposals=response.output_text)
+        
+        try:
+            parsed_proposals = TagSpanProposals.model_validate_json(response.output_text)
+        except Exception as e:
+            print(f"Error parsing TagSpanProposals: {e}")
+            parsed_proposals = TagSpanProposals(proposals=[])            
+        return TextChunkWithTagSpanProposals(id=text_chunk.id, text=text_chunk.text, tag_span_proposals=parsed_proposals)
 
     async def propose_tags_in_db(self, tag: Tag,  db_request: DBRequest) -> list[TextChunkWithTagSpanProposals]:
         return []
