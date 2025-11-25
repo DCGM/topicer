@@ -84,4 +84,9 @@ if __name__ == "__main__":
 
     tag_proposal = TagProposal("config.yaml", openai_client)
     # propose_tags is async; run it with asyncio
-    asyncio.run(tag_proposal.propose_tags(text_chunk, [tag1, tag2, tag3]))
+    tag_array = [tag1, tag2, tag3]
+    result = asyncio.run(tag_proposal.propose_tags(text_chunk, tag_array))
+    print(result.model_dump_json(indent=4))
+    
+    converted_tags = [tag.model_dump(mode="json") for tag in tag_array]
+    print(json.dumps(converted_tags, indent=4))
