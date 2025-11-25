@@ -1,3 +1,4 @@
-a: str
+import json
+a = [1,2,3,4,5]
 
-print(a)
+print(json.dumps(a))
