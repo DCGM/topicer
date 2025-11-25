@@ -3,4 +3,4 @@ weaviate:
     port: "port"
 openai:
     reasoning: "medium" # low, medium, high
-    model: "gpt-5-mini"
+    model: "gpt-4o-mini"
