@@ -201,14 +201,6 @@ if __name__ == "__main__":
 
     tag_proposal = TagProposal("config.yaml", openai_client)
 
-    # weaviate_client = weaviate.connect_to_local(
-    #     host="localhost",
-    #     port=9000,
-    #     grpc_port=50055
-    # )
-
-    # print(weaviate_client.is_ready())
-
     # run tag proposal
     '''
     # propose_tags is async; run it with asyncio
