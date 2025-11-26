@@ -4,3 +4,4 @@ weaviate:
 openai:
     reasoning: "medium" # low, medium, high
     model: "gpt-4o-mini"
+    span_granularity: "sentence" # word, phrase, sentence, paragraph

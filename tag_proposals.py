@@ -42,8 +42,15 @@ class TagProposal:
 
     async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
         tags_json = json.dumps([tag.model_dump(mode="json") for tag in tags])
-        instructions: str = "You are an expert tag proposer. Given the text, suggest relevant tags from the provided list. You must provide the tag ID, the start and end span of the text that corresponds to the tag, and a confidence score between 0 and 1. If applicable, provide a brief reason for your choice. The number of spans each tag can correspond to is not given. One tag can correspond to 0, 1 or many spans in the text, it's your job to find all the relevant passages for the tag. Respond in JSON format."
-        input: str = text_chunk.text + "\n\nAvailable tags: \n" + tags_json
+        instructions: str = f"""
+        You are an expert tag proposer. Given the text, suggest relevant tags from the provided list. You must provide the tag ID, the start and end index of span of the text that corresponds to the tag, and a confidence score between 0 and 1. The start and end indices stand for the position of the span in the text starting from 0 from the first character of the text. If applicable, provide a brief reason for your choice. The number of spans each tag can correspond to is not given. One tag can correspond to 0, 1 or many spans in the text, it's your job to find all the relevant passages for the tag. Respond in JSON format. The length of the span should roughly correspond to the following granularity level : {self.config.openai_cfg.get('span_granularity', 'phrase')}.
+        """
+        input: str = f"""\
+        {text_chunk.text}
+        
+        Available tags:
+        {tags_json}
+        """
 
         response = await self.openai_client.responses.parse(
             model=self.config.openai_cfg.get('model', 'gpt-5-mini'),
@@ -61,6 +68,7 @@ class TagProposal:
         except Exception as e:
             print(f"Error parsing TagSpanProposals: {e}")
             parsed_proposals = TagSpanProposals(proposals=[])
+            
         return TextChunkWithTagSpanProposals(id=text_chunk.id, text=text_chunk.text, tag_span_proposals=parsed_proposals)
 
     async def propose_tags2(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
