@@ -17,3 +17,7 @@ pip install -r requirements.txt
 ## formátování
 
 pro formátování využíváme autopep8
+
+## testování funkce propose_tags2
+
+`python tests/propose_tags2/script.py`

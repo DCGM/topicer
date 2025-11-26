@@ -1,0 +1,16 @@
+{
+    "text": "Dneska jsem si uvařil dobrý oběd. Bylo to rizoto s kuřecím masem.",
+    "tags": [
+        {
+            "id": "33333333-3333-3333-3333-333333333333",
+            "name": "Politika",
+            "description": "Zmínky o politice a volbách."
+        },
+        {
+            "id": "44444444-4444-4444-4444-444444444444",
+            "name": "Sport",
+            "description": "Zmínky o fotbale, hokeji a sportu."
+        }
+    ],
+    "expected": []
+}

@@ -8,6 +8,8 @@ import os
 from openai import OpenAI, AsyncOpenAI
 from schemas import TextChunk, Tag, TagSpanProposal, TagSpanProposals, TextChunkWithTagSpanProposals
 import asyncio
+from typing import Literal
+
 
 class DBRequest(BaseModel):
     collection_id: UUID | None = None
@@ -25,7 +27,7 @@ class Config:
         self.openai_cfg: dict = cfg.get('openai', {})
 
         if __debug__:
-            print("Loaded config:", cfg)
+            print("Loaded config:", json.dumps(cfg, indent=4))
 
         if (not self.weaviate_cfg) or (not self.openai_cfg):
             raise ValueError(
@@ -71,20 +73,21 @@ class TagProposal:
             
         return TextChunkWithTagSpanProposals(id=text_chunk.id, text=text_chunk.text, tag_span_proposals=parsed_proposals)
 
+    # funkce využívá běžný client.chat.completions.
     async def propose_tags2(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
         # 1. tagy do JSONu
         tags_info = json.dumps([tag.model_dump(mode="json")
-                               for tag in tags], ensure_ascii=True)
+                               for tag in tags], ensure_ascii=False)
 
         # 2. systémový prompt
         system_prompt = """
-        Jsi expert na označování tagů v textu. Tvým úkolem je v textu najít přesné výskyty zadaných tagů.
+        Jsi důkladný extraktor entit. Tvým úkolem je najít VŠECHNY výskyty zadaných tagů v textu.
 
-        Pravidla:
-        1. Výstup musí být validní JSON objekt: { "matches": [ { "tag_id": "UUID", "quote": "přesný text z originálu", "reason": "důvod", "confidence": 0.0-1.0 } ] }
-        2. "quote" musí být PŘESNÝ COPY-PASTE podřetězec ze vstupního textu. Neupravuj ho.
-        3. Pokud se slovo vyskytuje v textu vícekrát a odpovídá tagu, uveď ho ve výstupu vícekrát jako samostatné položky.
-        4. Pokud nic nenajdeš, vrať prázdné pole "matches".
+        KRITICKÁ PRAVIDLA:
+        1. "quote" musí být PŘESNÝ podřetězec ze vstupního textu.
+        2. NESLUČUJ VÝSKYTY! Pokud se slovo (např. "Python") v textu vyskytuje 2x, musíš vrátit 2 objekty v poli "matches".
+        3. Procházej text slovo po slově a vypiš každý nalezený tag jako samostatnou položku.
+        4. Výstup musí být validní JSON objekt: { "matches": [ { "tag_id": "UUID", "quote": "text", "reason": "důvod", "confidence": 0.0-1.0 } ] }
         """
 
         # 3. uživatelský prompt
@@ -128,7 +131,7 @@ class TagProposal:
             # nalezení indexu pro výskyty
             '''
             mohlo by se stát že v textu "Python je super jazyk. Python se mi líbí."
-            se hledá tag Python, OpenAI vrátí dvakrát "Python" jako quote.
+            se hledá tag programovacích jazyků, OpenAI vrátí dvakrát "Python" jako quote.
             Při hledání pomocí .find() bychom ale pořád našli první výskyt.
             Takže se vytvoří slovník search_start_indices.
             Ten sleduje, kde jsme skončili u každého quote a díky tomu se
@@ -145,7 +148,6 @@ class TagProposal:
                 if tag_id_str and quote:
                     # odkud máme hledat (abychom nenašli pořád to stejné první slovo)
                     search_from = search_start_indices.get(quote, 0)
-
                     start_index = text_chunk.text.find(quote, search_from)
 
                     if start_index != -1:
@@ -170,7 +172,7 @@ class TagProposal:
             )
 
         except Exception as e:
-            print(f"Chyba v propose_tags: {e}")
+            print(f"Chyba v propose_tags2: {e}")
             return TextChunkWithTagSpanProposals(
                 id=text_chunk.id,
                 text=text_chunk.text,
@@ -212,7 +214,7 @@ if __name__ == "__main__":
     print(json.dumps(converted_tags, indent=4))
     '''
 
-    async def test_run_propose_tags2():
+    async def test_run_propose_tags(variant: Literal[1, 2, 3]):
         chunk = TextChunk(
             id=uuid4(),
             text="Java je fajn, ale Python je lepší. Python se používá pro AI a backend."
@@ -235,15 +237,20 @@ if __name__ == "__main__":
             print("Hledané tagy:", json.dumps([tag.model_dump(
                 mode="json") for tag in tag_list], indent=4, ensure_ascii=False), "\n")
 
-        # zavolání propose tags2
-        result = await tag_proposal.propose_tags2(chunk, tag_list)
+        # zavolání propose tags
+        if variant == 1:
+            # TODO nefunguje
+            result = await tag_proposal.propose_tags(chunk, tag_list)
+        elif variant == 2:
+            result = await tag_proposal.propose_tags2(chunk, tag_list)
 
         # print výsledků
         if __debug__:
+            print("Výsledek:")
             print(result.model_dump_json(indent=4, ensure_ascii=False))
 
         # zavření klienta OpenAI
         await openai_client.close()
 
-    # run tag proposal 2 - odkomentuj pro spuštění testu
-    # asyncio.run(test_run_propose_tags2())
+    ### odkomentuj pro spuštění testu ###
+    # asyncio.run(test_run_propose_tags(2))
