@@ -1,6 +1,6 @@
 import weaviate
 from weaviate.classes.query import MetadataQuery
-from schemas import TextChunk
+from topicer.schemas import TextChunk
 import json
 
 class WeaviateHandler:
