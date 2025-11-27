@@ -1,7 +1,8 @@
 weaviate:
-    host: "host"
-    port: "port"
+    host: "localhost"
+    http_port: "9000"
+    grpc_port: "50055"
 openai:
     reasoning: "medium" # low, medium, high
-    model: "gpt-4o-mini"
-    span_granularity: "sentence" # word, phrase, sentence, paragraph
+    model: "gpt-5.1"
+    span_granularity: "phrase" # word, phrase, sentence, paragraph
