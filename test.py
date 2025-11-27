@@ -1,4 +1,6 @@
-import json
-a = [1,2,3,4,5]
+from db_handler import WeaviateHandler
 
-print(json.dumps(a))
+handler = WeaviateHandler({})
+
+if handler.is_connected():
+    schema_info = handler.get_schema_info(print_output=True)
