@@ -70,7 +70,7 @@ class TagProposal:
         except Exception as e:
             print(f"Error parsing TagSpanProposals: {e}")
             parsed_proposals = TagSpanProposals(proposals=[])
-            
+
         return TextChunkWithTagSpanProposals(id=text_chunk.id, text=text_chunk.text, tag_span_proposals=parsed_proposals)
 
     # funkce využívá běžný client.chat.completions.
@@ -180,6 +180,10 @@ class TagProposal:
             )
 
     async def propose_tags_in_db(self, tag: Tag,  db_request: DBRequest) -> list[TextChunkWithTagSpanProposals]:
+        """
+        1. Najde relevantní texty v DB podle významu Tagu.
+        2. Pro každý nalezený text zavolá LLM, aby našel přesné místo (span).
+        """
         return []
 
 
@@ -196,9 +200,6 @@ if __name__ == "__main__":
     if __debug__:
         print("API Key loaded" if API_KEY is not None else "API Key not found")
 
-    # openai_client = OpenAI(
-    #     api_key=API_KEY,
-    # )
     openai_client = AsyncOpenAI(api_key=API_KEY)
 
     tag_proposal = TagProposal("config.yaml", openai_client)
