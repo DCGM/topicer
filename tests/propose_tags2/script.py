@@ -13,8 +13,8 @@ project_root = current_dir.parent.parent
 sys.path.append(str(project_root))
 
 try:
-    from tag_proposals import TagProposal
-    from schemas import TextChunk, Tag
+    from topicer.tagging.tag_proposals import TagProposal
+    from topicer.schemas import TextChunk, Tag
 except ImportError as e:
     print(f"Chyba importu: {e}")
     sys.exit(1)

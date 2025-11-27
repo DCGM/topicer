@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
 from openai import OpenAI, AsyncOpenAI
-from schemas import TextChunk, Tag, TagSpanProposal, TagSpanProposals, TextChunkWithTagSpanProposals
+from topicer.schemas import TextChunk, Tag, TagSpanProposal, TagSpanProposals, TextChunkWithTagSpanProposals
 import asyncio
 from typing import Literal
 
@@ -17,7 +17,6 @@ class DBRequest(BaseModel):
 
 class DBSearch:
     pass
-
 
 class Config:
     def __init__(self, config_file: str):
@@ -188,7 +187,7 @@ class TagProposal:
 
 
 if __name__ == "__main__":
-    from test_data import text_chunk, tag1, tag2, tag3
+    from tests.test_data import text_chunk, tag1, tag2, tag3
 
     # načtení API klíče
     load_dotenv()
