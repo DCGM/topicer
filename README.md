@@ -108,6 +108,59 @@ Demo skript:
 3. Vrátí seznam tagů s přesnými pozicemi v textu (span_start, span_end)
 4. Vytiskne výsledky v čitelné formě
 
+## SSH tunel
+
+Projekt podporuje SSH tunelovací připojení k vzdálenému serveru. Konfiguraci najdeš v `ssh_tunnel_setup/`.
+
+### Konfigurace
+
+**Pro Python (`config.ini`):**
+```ini
+[SSH]
+user = tvoje-uzivatelske-jmeno
+server = adresa-serveru.cz
+
+[TUNNEL_1]
+local_port = 9000
+target_host = localhost
+target_port = 8080
+
+[TUNNEL_2]
+local_port = 50055
+target_host = localhost
+target_port = 50051
+```
+
+**Pro Bash (`config.sh`):**
+```bash
+SSH_USER="tvoje-uzivatelske-jmeno"
+SSH_SERVER="adresa-serveru.cz"
+
+TUNNEL_1_LOCAL="9000"
+TUNNEL_1_TARGET_HOST="localhost"
+TUNNEL_1_TARGET_PORT="8080"
+
+TUNNEL_2_LOCAL="50055"
+TUNNEL_2_TARGET_HOST="localhost"
+TUNNEL_2_TARGET_PORT="50051"
+```
+
+### Spuštění tunelu
+
+**Python (Windows/Linux/macOS):**
+```powershell
+python ssh_tunnel_setup/start_tunnel.py
+```
+
+**Bash (Linux/macOS):**
+```bash
+bash ssh_tunnel_setup/start_tunnel.sh
+```
+
+Tunel se spustí na pozadí a budou přesměrovány porty podle konfigurace.
+- Port 9000 → vzdálený localhost:8080
+- Port 50055 → vzdálený localhost:50051
+
 ## Jak projekt funguje
 
 1. **Vstup**: Textový úsek + seznam definovaných tagů
