@@ -2,15 +2,16 @@ import weaviate
 from weaviate.classes.query import MetadataQuery
 from topicer.schemas import TextChunk
 import json
+import logging
 
 class WeaviateHandler:
     def __init__(self, config: dict):
         self.url = config.get('host', 'localhost')
-        self.http_port = config.get('http_port', '9000')
+        self.rest_port = config.get('rest_port', '9000')
         self.grpc_port = config.get('grpc_port', '50055')
         self.client = weaviate.connect_to_local(
             host=self.url,
-            port=int(self.http_port),
+            port=int(self.rest_port),
             grpc_port=int(self.grpc_port)
         )
         
