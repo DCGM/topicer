@@ -1,74 +1,83 @@
-def find_exact_span(full_text: str, quote: str, context_before: str) -> tuple[int, int] | None:
-        """
-        Najde start a end indexy pro quote. Pokud je v textu vícekrát,
-        použije context_before k určení správného výskytu.
-        """
+import re
+
+def find_exact_span(full_text: str, quote: str, context_before: str) -> tuple[int, int] | None:   
+    """
+    Finds the start and end indices for a given quote within the full_text.
+    The search is resilient to variations in whitespace (spaces, tabs, newlines) using regex
+    and resolves duplicates using the provided context_before.
+    
+    Args:
+        full_text (str): The complete text in which to search.
+        quote (str): The exact substring to find within the full_text.
+        context_before (str): The text immediately preceding the quote to help disambiguate duplicates.
+    Returns:
+        tuple[int, int] | None: A tuple of (start_index, end_index) if found, else None.
+    """
+    
+    # If quote is empty, return None immediately
+    if not quote:
+        return None
+
+    # We split the quote into words
+    words = quote.split()
+    if not words:
+        return None
         
-        # Normalizace pro vyhledávání (ignorujeme rozdíly v typech mezer)
-        def normalize(s):
-            return ' '.join(s.split())
+    # Each word is escaped to avoid regex special characters interfering and joined with \s+
+    # \s+ means: "match a space, tab, newline - anything invisible"
+    pattern_str = r'\s+'.join([re.escape(w) for w in words])
+    
+    #We find all the matches at once using regex
+    matches = list(re.finditer(pattern_str, full_text))
 
-        norm_text = normalize(full_text)
-        norm_quote = normalize(quote)
-        norm_context = normalize(context_before)
+    # CASE A: No matches found
+    if not matches:
+        return None
 
-        # Pokud text vůbec nesedí (LLM si vymýšlela), vrátíme None
-        if norm_quote not in norm_text:
-            return None
+    # CASE B: One match -> return it directly
 
-        # Najdeme všechny výskyty 'quote' v textu
-        # Používáme re.finditer na originálním textu s trochou volnosti pro whitespace
-        # (Pro jednoduchost zde použijeme prosté hledání stringů, což stačí v 99% případů,
-        # pokud LLM skutečně kopíruje text).
+    if len(matches) == 1:
+        m = matches[0]
+        return m.start(), m.end()
+
+    # CASE C: Multiple matches -> decide based on context_before
+    # (This part is similar to your original, just adapted for regex match objects)
+    best_match_span = None
+    best_score = -1
+    
+    # Normalize context for comparison (normalize is useful here)
+    norm_context = ' '.join(context_before.split())
+
+    for m in matches:
+        start_idx = m.start()
+        end_idx = m.end()
+
+        # We take a piece of text before this occurrence
+        # Length of context + 50 characters buffer to have some room to search
+        search_window_start = max(0, start_idx - len(context_before) - 50)
+        text_before_span = full_text[search_window_start:start_idx]
         
-        start_indices = []
-        start_search = 0
-        while True:
-            idx = full_text.find(quote, start_search)
-            if idx == -1:
-                break
-            start_indices.append(idx)
-            start_search = idx + 1
-        
-        # SCÉNÁŘ A: Quote se v textu vůbec nenašel přesně (LLM změnila formátování)
-        if not start_indices:
-            # Záchranná brzda: zkusíme najít alespoň normalizovanou verzi
-            # (implementace by byla složitější, pro teď vrátíme None a přeskočíme)
-            return None
+        # Normalize the text extracted from the document
+        norm_text_before = ' '.join(text_before_span.split())
 
-        # SCÉNÁŘ B: Quote je tam jen jednou -> máme vyhráno
-        if len(start_indices) == 1:
-            return start_indices[0], start_indices[0] + len(quote)
+        score = 0
+        # 1. Try to find the entire context phrase
+        if norm_context in norm_text_before:
+            score = 100 # Jackpot
+        else:
+            # 2. If not, calculate word intersection (Jaccard similarity)
+            set_ctx = set(norm_context.split())
+            set_txt = set(norm_text_before.split())
+            intersection = set_ctx & set_txt
+            score = len(intersection) # The more common words, the better
 
-        # SCÉNÁŘ C: Quote je tam vícekrát (Duplicita) -> použijeme kontext
-        best_match_idx = -1
-        best_score = 0
+        if score > best_score:
+            best_score = score
+            best_match_span = (start_idx, end_idx)
 
-        for idx in start_indices:
-            # Vezmeme kus textu před tímto výskytem
-            # Délka kontextu + malá rezerva
-            chunk_before_start = max(0, idx - len(context_before) - 20) 
-            text_before_span = full_text[chunk_before_start:idx]
-            
-            # Spočítáme shodu (jednoduchá heuristika: kolik slov z kontextu sedí)
-            # Čím více slov z context_before najdeme v text_before_span, tím lépe.
-            score = 0
-            norm_text_before = normalize(text_before_span)
-            
-            # Hledáme, zda se normalizovaný kontext vyskytuje těsně před
-            if norm_context in norm_text_before:
-                score = 100 # Perfektní shoda
-            else:
-                # Fallback: částečná shoda (pokud LLM zkrátilo kontext)
-                common_words = set(norm_context.split()) & set(norm_text_before.split())
-                score = len(common_words)
-            
-            if score > best_score:
-                best_score = score
-                best_match_idx = idx
-                
-        # Pokud se kontext nepodařilo namapovat, vezmeme první výskyt (better than nothing)
-        if best_match_idx == -1:
-            best_match_idx = start_indices[0]
+    # If comparison failed (best_score is 0), simply return the first occurrence
+    if best_match_span is None:
+        m = matches[0]
+        return m.start(), m.end()
 
-        return best_match_idx, best_match_idx + len(quote)
+    return best_match_span
