@@ -36,7 +36,7 @@ class TagProposal:
            - `quote`: The **EXACT** substring from the text. Copy it precisely, character for character.
            - `context_before`: The 5-10 words immediately preceding the quote. This is crucial to locate the text if the phrase appears multiple times.
            - `tag`: The matching tag object.
-           - `confidence`: A score between 0.0 and 1.0. Indicate how confident you are that this quote matches the tag. Try to be as accurate as possible. You don't need to only return high-confidence matches; lower-confidence matches are acceptable if you believe they might be relevant.
+           - `confidence`: A score between 0.0 and 1.0. Indicate how confident you are that this quote matches the tag. Try to be as accurate as possible. You don't need to only return high-confidence matches; lower-confidence matches are acceptable if you believe they might be relevant. It's better to provide more options for downstream processing, but do not flood with very low-confidence matches.
            - `reason`: (optional) A brief explanation of why you selected this quote for the tag.
         
         ### Constraints:
