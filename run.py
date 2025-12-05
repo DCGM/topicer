@@ -7,6 +7,9 @@ from topicer.schemas import TextChunk
 from uuid import uuid4
 from tests.test_data import tag1, tag2, tag3, text_chunk
 from topicer.schemas import TextChunkWithTagSpanProposals
+from topicer.tagging.config import load_config
+
+# from topicer.database.db_handler import WeaviateHandler
 
 def print_tag_proposals_with_spans(proposals: TextChunkWithTagSpanProposals):
     """Vytiskne tag proposals s vykrojeným textem podle span_start a span_end"""
@@ -20,7 +23,7 @@ def print_tag_proposals_with_spans(proposals: TextChunkWithTagSpanProposals):
         span_text = proposals.text[proposal.span_start:proposal.span_end]
         
         print(f"Návrh {i}:")
-        print(f"  Tag ID: {proposal.tag_id}")
+        print(f"  Tag: {proposal.tag.name} (ID: {proposal.tag.id})")
         print(f"  Span: [{proposal.span_start}:{proposal.span_end}]")
         print(f"  Text: \"{span_text}\"")
         print(f"  Confidence: {proposal.confidence}")
@@ -30,6 +33,8 @@ def print_tag_proposals_with_spans(proposals: TextChunkWithTagSpanProposals):
 async def main():
     # načtení API klíče
     load_dotenv()
+    config = load_config() # default is config.yaml
+    
     API_KEY = os.getenv("OPENAI_API_KEY")
     if not API_KEY:
         logging.error("Chyba: OPENAI_API_KEY není nastaven v .env souboru")
@@ -37,12 +42,22 @@ async def main():
         
     openai_client = AsyncOpenAI(api_key=API_KEY)
     
-    tag_proposal = TagProposal("config.yaml", openai_client)
+    tag_proposal = TagProposal(config, openai_client)
 
     proposals: TextChunkWithTagSpanProposals = await tag_proposal.propose_tags(text_chunk, [tag1, tag2, tag3])
     
     # print(proposals.model_dump_json(indent=2))
     print_tag_proposals_with_spans(proposals)
+    
+    # Example usage of WeaviateHandler (assuming you want to do something with it)
+    # weaviate_handler = WeaviateHandler(config)
+    # if weaviate_handler.is_connected():
+    #     logging.info("Successfully connected to Weaviate database.")
+    #     schema_info = weaviate_handler.get_schema_info(print_output=True)
+    #     print(schema_info)
+    #     weaviate_handler.close()
+    # else:
+    #     logging.error("Failed to connect to Weaviate database.")
     
 if __name__ == "__main__":
     import asyncio
