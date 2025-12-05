@@ -9,7 +9,7 @@ class Tag(BaseModel):
     description: str | None = None
     # examples: list[TextWithSpan] | None = None
 class TagSpanProposal(BaseModel):
-    tag_id: UUID
+    tag: Tag
     span_start: int
     span_end: int
     confidence: float | None = None
