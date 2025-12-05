@@ -4,9 +4,9 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
 from openai import AsyncOpenAI
-from topicer.schemas import TextChunk, Tag, TagSpanProposal, TagSpanProposalList, LLMTagProposalList, TextChunkWithTagSpanProposals
+from topicer.schemas import TextChunk, Tag, TagSpanProposal, TagSpanProposalList, TextChunkWithTagSpanProposals
+from topicer.tagging.schemas import LLMTagProposalList, AppConfig
 from typing import Literal
-from topicer.tagging.config import Config
 import logging
 from topicer.tagging.utils import find_exact_span
 
@@ -16,35 +16,9 @@ class DBRequest(BaseModel):
 
 
 class TagProposal:
-    def __init__(self, config_file: str, openai_client: AsyncOpenAI):
-        self.config = Config(config_file)
+    def __init__(self, config: AppConfig, openai_client: AsyncOpenAI):
+        self.config = config
         self.openai_client = openai_client
-
-    # async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
-    #     tags_json = json.dumps([tag.model_dump(mode="json") for tag in tags])
-    #     instructions: str = f"""
-    #     You are an expert tag proposer. Given the text, suggest relevant tags from the provided list. You must provide the tag ID, the start and end index of span of the text that corresponds to the tag, and a confidence score between 0 and 1. The start and end indices stand for the position of the span in the text starting from 0 from the first character of the text. If applicable, provide a brief reason for your choice. The number of spans each tag can correspond to is not given. One tag can correspond to 0, 1 or many spans in the text, it's your job to find all the relevant passages for the tag. Respond in JSON format. The length of the span should roughly correspond to the following granularity level : {self.config.openai_cfg.get('span_granularity', 'phrase')}.
-    #     """
-    #     input: str = f"""\
-    #     {text_chunk.text}
-
-    #     Available tags:
-    #     {tags_json}
-    #     """
-
-    #     response = await self.openai_client.responses.parse(
-    #         model=self.config.openai_cfg.get('model', 'gpt-5-mini'),
-    #         instructions=instructions,
-    #         input=input,
-    #         text_format=TagSpanProposalList,
-    #         reasoning={
-    #             "effort": self.config.openai_cfg.get('reasoning', 'medium')
-    #         }
-    #     )
-
-    #     parsed_proposals = response.output_parsed.proposals
-
-    #     return TextChunkWithTagSpanProposals(id=text_chunk.id, text=text_chunk.text, tag_span_proposals=parsed_proposals)
 
     async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
 
@@ -61,13 +35,14 @@ class TagProposal:
         3. For each match, you MUST extract:
            - `quote`: The **EXACT** substring from the text. Copy it precisely, character for character.
            - `context_before`: The 5-10 words immediately preceding the quote. This is crucial to locate the text if the phrase appears multiple times.
-           - `tag_id`: The ID of the matching tag.
-           - `confidence`: A score between 0.0 and 1.0.
+           - `tag`: The matching tag object.
+           - `confidence`: A score between 0.0 and 1.0. Indicate how confident you are that this quote matches the tag. Try to be as accurate as possible. You don't need to only return high-confidence matches; lower-confidence matches are acceptable if you believe they might be relevant.
+           - `reason`: (optional) A brief explanation of why you selected this quote for the tag.
         
         ### Constraints:
-        - Do not calculate indices manually.
         - Do not paraphrase the quote.
-        - Granularity level: {self.config.openai_cfg.get('span_granularity', 'phrase')}.
+        - Granularity level: {self.config.openai.span_granularity}. Try to choose spans that fit this granularity approximately.
+        - If no relevant spans are found for a tag, do not create any entries for it
         """
 
         input_text: str = f"""
@@ -78,12 +53,12 @@ class TagProposal:
         {tags_json}
         """
         response = await self.openai_client.responses.parse(
-            model=self.config.openai_cfg.get('model', 'gpt-4o'),
+            model=self.config.openai.model,
             instructions=instructions,
             input=input_text,
             text_format=LLMTagProposalList,
             reasoning={
-                "effort": self.config.openai_cfg.get('reasoning', 'medium')
+                "effort": self.config.openai.reasoning
             }
         )
 
@@ -104,7 +79,7 @@ class TagProposal:
                 # We create the final object with indices that your application expects
                 final_proposals.append(
                     TagSpanProposal(
-                        tag_id=prop.tag_id,
+                        tag=prop.tag,
                         span_start=start,
                         span_end=end,
                         confidence=prop.confidence,
