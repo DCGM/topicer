@@ -75,8 +75,8 @@ class CzechLemmatizedTokenizer(Tokenizer):
 
     def tokenize(self, text):
         """
-        Tokenize and lemmatize the input text using spaCy.
-        This function only performs lemmatization and skips other NLP components.
+        Tokenize and lemmatize the input text using the Morphodita tagger.
+        This function performs lemmatization and tokenization for Czech text using Morphodita, and skips other NLP components.
 
         :param text: The input text to process.
         :return: A list of lemmatized tokens.
