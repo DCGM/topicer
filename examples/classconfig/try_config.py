@@ -25,7 +25,7 @@ class AnotherTopicerMethod(TopicerMethod, ConfigurableMixin):
     def __post_init__(self):
         pass
     def generate_topics(self, data: list[str]) -> list[str]:
-        return [self.tags[i % len(self.tags)] for i in range(len(data))]
+        return [self.topics[i % len(self.topics)] for i in range(len(data))]
 
 
 class TopicerMethodFactory(CreatableMixin, ConfigurableMixin):
