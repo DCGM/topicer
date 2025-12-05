@@ -18,7 +18,7 @@ class MyTopicerMethod(TopicerMethod, ConfigurableMixin):
 
 
 class AnotherTopicerMethod(TopicerMethod, ConfigurableMixin):
-    n_topics: int = ConfigurableValue(user_default=5, desc="Number of topics to generate", validator=lambda x: len(x) > 0)
+    n_topics: int = ConfigurableValue(user_default=5, desc="Number of topics to generate", validator=lambda x: x > 0)
     topics: list[str] = ConfigurableValue(user_default=["Topic A", "Topic B", "Topic C", "Topic D", "Topic E"],
                                          desc="Predefined topics")
 
