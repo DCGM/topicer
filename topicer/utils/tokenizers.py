@@ -94,8 +94,17 @@ class CzechLemmatizedTokenizer(Tokenizer):
         # Drop stopwords
         tokens = [token for token in tokens if token not in self.stopword_set]
 
-        # Remove numeric tokens
-        tokens = [token for token in tokens if not token.isdigit()]
+        # Remove numeric and alphanumeric tokens according to parameters
+        filtered_tokens = []
+        for token in tokens:
+            if token.isdigit():
+                if not self.keep_num:
+                    continue
+            elif token.isalnum() and not token.isalpha():
+                if not self.keep_alphanum:
+                    continue
+            filtered_tokens.append(token)
+        tokens = filtered_tokens
 
         # # drop short tokens
         # if self.min_length > 0:
