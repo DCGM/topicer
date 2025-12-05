@@ -1,7 +1,7 @@
 weaviate:
     host: "localhost"
-    http_port: "9000"
-    grpc_port: "50055"
+    rest_port: "8080"
+    grpc_port: "50051"
 openai:
     reasoning: "medium" # low, medium, high
     model: "gpt-5.1"

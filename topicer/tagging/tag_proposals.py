@@ -1,76 +1,101 @@
-import yaml
 import json
-from typing import List
 from uuid import UUID, uuid4
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
-from openai import OpenAI, AsyncOpenAI
-from topicer.schemas import TextChunk, Tag, TagSpanProposal, TagSpanProposals, TextChunkWithTagSpanProposals
-import asyncio
+from openai import AsyncOpenAI
+from topicer.schemas import TextChunk, Tag, TagSpanProposal, TagSpanProposalList, TextChunkWithTagSpanProposals
+from topicer.tagging.schemas import LLMTagProposalList, AppConfig
 from typing import Literal
+import logging
+from topicer.tagging.utils import find_exact_span
 
 
 class DBRequest(BaseModel):
     collection_id: UUID | None = None
 
 
-class DBSearch:
-    pass
-
-class Config:
-    def __init__(self, config_file: str):
-        with open(config_file, 'r') as f:
-            cfg: dict = yaml.safe_load(f)
-        self.weaviate_cfg: dict = cfg.get('weaviate', {})
-        self.openai_cfg: dict = cfg.get('openai', {})
-
-        if __debug__:
-            print("Loaded config:", json.dumps(cfg, indent=4))
-
-        if (not self.weaviate_cfg) or (not self.openai_cfg):
-            raise ValueError(
-                "Invalid config file: missing 'weaviate' or 'openai' sections")
-
-        if (not self.openai_cfg.get('model')):
-            self.openai_cfg['model'] = 'gpt-4o-mini'
-
-
 class TagProposal:
-    def __init__(self, config_file: str, openai_client: AsyncOpenAI):
-        self.config = Config(config_file)
+    def __init__(self, config: AppConfig, openai_client: AsyncOpenAI):
+        self.config = config
         self.openai_client = openai_client
 
     async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
-        tags_json = json.dumps([tag.model_dump(mode="json") for tag in tags])
+
+        tags_json = json.dumps([tag.model_dump(mode="json")
+                               for tag in tags], ensure_ascii=False)
+
+        # Prompt instructions for LLM
         instructions: str = f"""
-        You are an expert tag proposer. Given the text, suggest relevant tags from the provided list. You must provide the tag ID, the start and end index of span of the text that corresponds to the tag, and a confidence score between 0 and 1. The start and end indices stand for the position of the span in the text starting from 0 from the first character of the text. If applicable, provide a brief reason for your choice. The number of spans each tag can correspond to is not given. One tag can correspond to 0, 1 or many spans in the text, it's your job to find all the relevant passages for the tag. Respond in JSON format. The length of the span should roughly correspond to the following granularity level : {self.config.openai_cfg.get('span_granularity', 'phrase')}.
-        """
-        input: str = f"""\
-        {text_chunk.text}
+        You are an expert data extraction assistant. Your task is to identify relevant sections in the text matching the provided tags.
         
-        Available tags:
-        {tags_json}
+        ### Instructions:
+        1. Read the input text.
+        2. Identify spans that match the definitions of the Available Tags.
+        3. For each match, you MUST extract:
+           - `quote`: The **EXACT** substring from the text. Copy it precisely, character for character.
+           - `context_before`: The 5-10 words immediately preceding the quote. This is crucial to locate the text if the phrase appears multiple times.
+           - `tag`: The matching tag object.
+           - `confidence`: A score between 0.0 and 1.0. Indicate how confident you are that this quote matches the tag. Try to be as accurate as possible. You don't need to only return high-confidence matches; lower-confidence matches are acceptable if you believe they might be relevant. It's better to provide more options for downstream processing, but do not flood with very low-confidence matches.
+           - `reason`: (optional) A brief explanation of why you selected this quote for the tag.
+        
+        ### Constraints:
+        - Do not paraphrase the quote.
+        - Granularity level: {self.config.openai.span_granularity}. Try to choose spans that fit this granularity approximately.
+        - If no relevant spans are found for a tag, do not create any entries for it
         """
 
+        input_text: str = f"""
+        ### Document Text:
+        {text_chunk.text}
+        
+        ### Available Tags:
+        {tags_json}
+        """
         response = await self.openai_client.responses.parse(
-            model=self.config.openai_cfg.get('model', 'gpt-5-mini'),
+            model=self.config.openai.model,
             instructions=instructions,
-            input=input,
-            text_format=TagSpanProposals,
+            input=input_text,
+            text_format=LLMTagProposalList,
             reasoning={
-                "effort": self.config.openai_cfg.get('reasoning', 'medium')
+                "effort": self.config.openai.reasoning
             }
         )
 
-        try:
-            parsed_proposals = TagSpanProposals.model_validate_json(
-                response.output_text)
-        except Exception as e:
-            print(f"Error parsing TagSpanProposals: {e}")
-            parsed_proposals = TagSpanProposals(proposals=[])
+        # it is already parsed as LLMTagProposalList
+        llm_proposals = response.output_parsed.proposals
 
-        return TextChunkWithTagSpanProposals(id=text_chunk.id, text=text_chunk.text, tag_span_proposals=parsed_proposals)
+        final_proposals = []
+
+        # Post-processing in Python (Calculating indices)
+        for prop in llm_proposals:
+            # We have quote and context_before, need to find indices in text_chunk.text
+            indices = find_exact_span(
+                text_chunk.text, prop.quote, prop.context_before)
+
+            if indices:
+                start, end = indices
+
+                # We create the final object with indices that your application expects
+                final_proposals.append(
+                    TagSpanProposal(
+                        tag=prop.tag,
+                        span_start=start,
+                        span_end=end,
+                        confidence=prop.confidence,
+                        reason=prop.reason
+                    )
+                )
+            else:
+                # Logging: LLM returned text that is not found in the document
+                logging.warning(
+                    f"Could not locate quote '{prop.quote}' in text chunk {text_chunk.id}")
+
+        return TextChunkWithTagSpanProposals(
+            id=text_chunk.id,
+            text=text_chunk.text,
+            tag_span_proposals=final_proposals
+        )
 
     # funkce využívá běžný client.chat.completions.
     async def propose_tags2(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
@@ -167,7 +192,7 @@ class TagProposal:
             return TextChunkWithTagSpanProposals(
                 id=text_chunk.id,
                 text=text_chunk.text,
-                tag_span_proposals=TagSpanProposals(proposals=proposals),
+                tag_span_proposals=TagSpanProposalList(proposals=proposals),
             )
 
         except Exception as e:
@@ -175,7 +200,7 @@ class TagProposal:
             return TextChunkWithTagSpanProposals(
                 id=text_chunk.id,
                 text=text_chunk.text,
-                tag_span_proposals=TagSpanProposals(proposals=[]),
+                tag_span_proposals=TagSpanProposalList(proposals=[]),
             )
 
     async def propose_tags_in_db(self, tag: Tag,  db_request: DBRequest) -> list[TextChunkWithTagSpanProposals]:

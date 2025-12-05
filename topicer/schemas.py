@@ -1,10 +1,7 @@
+# THIS FILE CONTAINS PUBLIC SCHEMAS AVAILABLE FOR IMPORTING IN OTHER PACKAGES
+
 from uuid import UUID
 from pydantic import BaseModel
-
-
-class TextChunk(BaseModel):
-    id: UUID
-    text: str
 
 
 class Tag(BaseModel):
@@ -15,19 +12,24 @@ class Tag(BaseModel):
 
 
 class TagSpanProposal(BaseModel):
-    tag_id: UUID
+    tag: Tag
     span_start: int
     span_end: int
     confidence: float | None = None
     reason: str | None = None
 
 
-class TagSpanProposals(BaseModel):
+class TagSpanProposalList(BaseModel):
     proposals: list[TagSpanProposal]
 
 
+class TextChunk(BaseModel):
+    id: UUID
+    text: str
+
+
 class TextChunkWithTagSpanProposals(TextChunk):
-    tag_span_proposals: TagSpanProposals
+    tag_span_proposals: list[TagSpanProposal]
 
 
 class DBRequest(BaseModel):
@@ -48,5 +50,4 @@ class DiscoveredTopics(BaseModel):
 
 class DiscoveredTopicsSparse(BaseModel):
     topics: list[Topic]
-    topic_documents: list[
-        list[tuple[int, float]]]  # N x K matrix where N is number of topics and K is number of documents, the tuple is (document_index, probability)
+    topic_documents: list[list[tuple[int, float]]]  # N x K matrix where N is number of topics and K is number of documents, the tuple is (document_index, probability)
