@@ -54,7 +54,7 @@ class OpenAsyncAPI(APIAsync):
 
         :param request: APIRequest object.
         :return: Dictionary representation of the request.
-        :raise ValueError: If unsopported arguments are provided.
+        :raise ValueError: If unsupported arguments are provided.
         """
         if request.context_size is not None:
             raise ValueError("context_size is not supported by OpenAI API.")
