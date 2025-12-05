@@ -7,7 +7,6 @@ from typing import AsyncGenerator
 
 from ollama import AsyncClient
 from openai import APIError, RateLimitError, AsyncOpenAI
-from pydantic.v1 import BaseModel
 
 from topicer.llm_api.base import APIOutput, APIModelResponseOllama, APIModelResponseOpenAI, APIBase, APIRequest
 
