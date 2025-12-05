@@ -103,7 +103,7 @@ Důležité: Nezapomeň nejprve rozebrat roli slov a až poté dokumenty.
     generate_topic_name_prompt: Template = ConfigurableValue(
         desc="Jinja2 template prompt for generating topic names.",
         user_default=LiteralScalarString("""Analyzuj následující:
-Slova: {% topic_words | join(", ") %}
+Slova: {{ topic_words | join(", ") }}
 Dokumenty:
 {% for doc in topic_docs %}
 {{doc.text}}
