@@ -23,8 +23,7 @@ class AnotherTopicerMethod(TopicerMethod, ConfigurableMixin):
                                          desc="Predefined topics")
 
     def __post_init__(self):
-
-
+        pass
     def generate_topics(self, data: list[str]) -> list[str]:
         return [self.tags[i % len(self.tags)] for i in range(len(data))]
 
