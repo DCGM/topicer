@@ -107,8 +107,8 @@ class CzechLemmatizedTokenizer(Tokenizer):
         tokens = filtered_tokens
 
         # # drop short tokens
-        # if self.min_length > 0:
-        #     tokens = [t if len(t) >= self.min_length else '_' for t in tokens]
+        if self.min_length > 0:
+            tokens = [t for t in tokens if len(t) >= self.min_length]
 
         return tokens
 
@@ -117,7 +117,7 @@ class SpacyLemmatizedTokenizer(Tokenizer):
     stopwords: list[str] | str | None = ConfigurableValue(
         desc="List of stopwords to remove from the text during tokenization or language (available languages https://github.com/Alir3z4/stop-words).",
         validator=lambda x: isinstance(x, list) or isinstance(x, str) or x is None,
-        user_default="czech"
+        user_default="english"
     )
     keep_num: bool = ConfigurableValue(
         desc="Whether to keep numeric tokens in the text.",

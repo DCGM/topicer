@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from abc import abstractmethod
-from asyncio import as_completed
+
 from collections.abc import Iterable
 from typing import AsyncGenerator
 
@@ -33,7 +33,7 @@ class APIAsync(APIBase):
         :param requests: Iterable of request dictionaries.
         :return: Processed requests
         """
-        for o in as_completed(self.process_single_request(request) for request in requests):
+        for o in asyncio.as_completed(self.process_single_request(request) for request in requests):
             yield await o
 
 

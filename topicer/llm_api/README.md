@@ -11,7 +11,7 @@ This wrapper is using `classconfig` package which allows for easy creation of in
 You can use the LLM API wrapper directly by creating an instance of the desired LLM class and calling its methods.
 
 ```python
-from semant_demo.llm_api import OllamaAsyncAPI, APIRequest, APIOutput
+from topicer.llm_api import OllamaAsyncAPI, APIRequest, APIOutput
 api = OllamaAsyncAPI(
     api_key="your_api_key",
     base_url="http://localhost:11434",
@@ -31,8 +31,8 @@ output.response.get_raw_content().strip()   # Get the raw response content regar
 Let's assume you want to provide new tool to SemANT backend that uses LLM API, for the sake of this example we will create a simple translator.
 
 ```python
-from semant_demo.llm_api import APIAsync, APIRequest, APIOutput, OllamaAsyncAPI
-from semant_demo.utils.template import Template, TemplateTransformer
+from topicer.llm_api import APIAsync, APIRequest, APIOutput, OllamaAsyncAPI
+from topicer.utils.template import Template, TemplateTransformer
 from classconfig import ConfigurableSubclassFactory, ConfigurableMixin, ConfigurableValue
 from classconfig.configurable import CreatableMixin
 
