@@ -1,19 +1,13 @@
+from functools import lru_cache
+from pathlib import Path
 import yaml
-import json
-import logging
+from .schemas import AppConfig
 
-class Config:
-    def __init__(self, config_file: str):
-        with open(config_file, 'r') as f:
-            config: dict = yaml.safe_load(f)
-        self.weaviate_cfg: dict = config.get('weaviate', {})
-        self.openai_cfg: dict = config.get('openai', {})
+DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.yaml"
 
-        logging.debug("Loaded config: %s", json.dumps(config, indent=4))
-
-        if (not self.weaviate_cfg) or (not self.openai_cfg):
-            raise ValueError(
-                "Invalid config file: missing 'weaviate' or 'openai' sections")
-
-        if (not self.openai_cfg.get('model')):
-            self.openai_cfg['model'] = 'gpt-4o-mini'
+@lru_cache
+def load_config(path: str | Path | None = None) -> AppConfig:
+    config_path = Path(path or DEFAULT_CONFIG_PATH).resolve()
+    with open(config_path, "r") as f:
+        data = yaml.safe_load(f) or {}
+    return AppConfig.model_validate(data)
