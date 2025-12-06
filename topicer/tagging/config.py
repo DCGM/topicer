@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 import yaml
-from .schemas import AppConfig
+from .tagging_schemas import AppConfig
 
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.yaml"
 
