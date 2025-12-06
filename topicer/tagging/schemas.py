@@ -1,7 +1,6 @@
 # THIS FILE CONTAINS PRIVATE SCHEMAS USED FOR TAGGING PROPOSALS
 
 from pydantic import BaseModel, Field
-from uuid import UUID
 from topicer.schemas import Tag
 
 # Tagging schemas

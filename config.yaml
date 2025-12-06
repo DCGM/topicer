@@ -3,6 +3,6 @@ weaviate:
     rest_port: "8080"
     grpc_port: "50051"
 openai:
-    reasoning: "medium" # low, medium, high
+    reasoning: "none" # low, medium, high
     model: "gpt-5.1"
-    span_granularity: "phrase" # word, phrase, sentence, paragraph
+    span_granularity: "collocation" # word, phrase, collocation, sentence, paragraph

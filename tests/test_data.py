@@ -1,5 +1,5 @@
 from uuid import uuid4
-from topicer.tagging.tag_proposals import TextChunk, Tag
+from topicer.schemas import TextChunk, Tag
 
 text_chunk: TextChunk = TextChunk(
     id=uuid4(),

@@ -1,10 +1,8 @@
 from openai import AsyncOpenAI
-from topicer.tagging.tag_proposals import TagProposal
+from topicer.tagging.tag_proposal_v2 import TagProposalV2 as TagProposal
 from dotenv import load_dotenv
 import os
 import logging
-from topicer.schemas import TextChunk
-from uuid import uuid4
 from tests.test_data import tag1, tag2, tag3, text_chunk
 from topicer.schemas import TextChunkWithTagSpanProposals
 from topicer.tagging.config import load_config
@@ -48,17 +46,7 @@ async def main():
     
     # print(proposals.model_dump_json(indent=2))
     print_tag_proposals_with_spans(proposals)
-    
-    # Example usage of WeaviateHandler (assuming you want to do something with it)
-    # weaviate_handler = WeaviateHandler(config)
-    # if weaviate_handler.is_connected():
-    #     logging.info("Successfully connected to Weaviate database.")
-    #     schema_info = weaviate_handler.get_schema_info(print_output=True)
-    #     print(schema_info)
-    #     weaviate_handler.close()
-    # else:
-    #     logging.error("Failed to connect to Weaviate database.")
-    
+        
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
