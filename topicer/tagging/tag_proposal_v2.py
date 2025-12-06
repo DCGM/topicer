@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import os
 from openai import AsyncOpenAI
 from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals
-from topicer.tagging.schemas import AppConfig
+from topicer.tagging.tagging_schemas import AppConfig
 from typing import Literal
 import logging
 from topicer.database.db_schemas import DBRequest

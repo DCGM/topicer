@@ -3,7 +3,7 @@
 import json
 from openai import AsyncOpenAI
 from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals
-from topicer.tagging.schemas import LLMTagProposalList, AppConfig
+from topicer.tagging.tagging_schemas import LLMTagProposalList, AppConfig
 import logging
 from topicer.tagging.utils import find_exact_span
 from topicer.database.db_schemas import DBRequest
