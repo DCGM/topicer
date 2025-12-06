@@ -1,194 +1,192 @@
 # topicer
 
-Projekt pro automatické navrhování tagů (štítků) k textům pomocí LLM (Large Language Model). Systém extrahuje relevantní úseky textu a mapuje je na předem definované tagy s přesným určením pozice (span) v textu.
+Automatické navrhování tagů (štítků) k textům pomocí LLM. Model označí relevantní úseky textu a přiřadí je k předem definovaným tagům včetně přesných pozic (span_start, span_end).
 
-## Přehled projektu
+## Přehled
 
-### Hlavní komponenty
+- **Jádro (`topicer/tagging/`)**
+  - `tag_proposal_v1.py` – varianta s `Responses API`, která vrací quote + context a v Pythonu hledá přesné indexy.
+  - `tag_proposal_v2.py` – varianta s `Chat Completions API`; hledá opakované výskyty podle posunutého startu.
+  - `config.py` – načtení `config.yaml` do `AppConfig` (openai/weaviate).
+  - `utils.py` – pomocné funkce, např. robustní hledání spanů podle quote + context.
+  - `schemas.py` – interní schémata pro LLM návrhy a konfiguraci.
 
-- **`topicer/tagging/`** - Jádro projektu
-  - `tag_proposals.py` - Hlavní třída `TagProposal` pro návrh tagů pomocí OpenAI API
-  - `config.py` - Konfigurace z `config.yaml`
-  - `utils.py` - Pomocné funkce (hledání pozic textu, apod.)
-  - `schemas.py` - Datové schémata specifická pro tagging
+- **Veřejná schémata (`topicer/schemas.py`)**
+  - `Tag`, `TextChunk`, `TagSpanProposal`, `TextChunkWithTagSpanProposals`.
 
-- **`topicer/schemas.py`** - Veřejná schémata
-  - `Tag` - Definice tagu (id, name, description)
-  - `TextChunk` - Textový úsek
-  - `TagSpanProposal` - Návrh tagu s přesnou pozicí v textu
-  - `TextChunkWithTagSpanProposals` - Výsledek zpracování
+- **Databáze (`topicer/database/`)**
+  - Připravené schéma pro Weaviate (`db_schemas.py`, klient `weaviate_client.py`).
 
-- **`topicer/database/`** - Databázové operace
-  - `db_handler.py` - Práce s databází (Weaviate)
+- **Příklady a testy**
+  - `run.py` – demo s daty z `tests/test_data.py`.
+  - `examples/` – ukázky konfigurace a použití.
+  - `tests/propose_tags*` – vstupní/výstupní JSONy pro manuální porovnání.
 
-- **`tests/`** - Testovací data a skripty
-  - `propose_tags/` a `propose_tags2/` - Testovací sady s vstupy a očekávanými výstupy
-  - `test_data.py` - Vzorová testovací data
+## Struktura projektu
 
-- **`examples/`** - Příklady použití
-  - `example.py` - Příklad spuštění
-  - `configs/` - Ukázkové konfigurační soubory
+```
+topicer/
+├── tagging/                          # Jádro pro návrh tagů
+│   ├── tag_proposal_v1.py           # Varianta s Responses API
+│   ├── tag_proposal_v2.py           # Varianta s Chat Completions API
+│   ├── config.py                    # Načtení konfigurace z YAML
+│   ├── tagging_schemas.py           # Interní Pydantic schémata
+│   └── utils.py                     # pomocné funkce
+├── database/                        # Databázová vrstva (Weaviate)
+│   ├── db_schemas.py                # DBRequest a další DB schémata
+│   └── weaviate_client.py           # Klient pro Weaviate
+├── schemas.py                       # Veřejná schémata (Tag, TextChunk, TagSpanProposal)
 
-## Setup
+config.yaml                           # Konfigurace (openai, weaviate)
+run.py                                # Vstupní skript – demo
+requirements.txt                      # Python závislosti
+pyproject.toml                        # Project metadata
+.env                                  # OpenAI API klíč (gitignore)
 
-### Windows
+tests/
+├── test_data.py                     # Vzorová testovací data
+├── propose_tags/                    # Testovací sada V1
+│   ├── script.py
+│   ├── inputs/                      # test1_cities.json, test2_*.json, …
+│   └── outputs/                     # expected_output JSONy
+└── propose_tags2/                   # Testovací sada V2
+    ├── script.py
+    ├── inputs/
+    └── outputs/
 
-**PowerShell:**
+examples/
+├── example.py                        # Příklad základního použití
+└── configs/
+    └── example_config.yaml
+
+ssh_tunnel_setup/                     # SSH tunelovací skripty
+├── config.ini                        # Konfigurace pro Python verzi
+├── config.sh                         # Konfigurace pro Bash verzi
+├── start_tunnel.py
+└── start_tunnel.sh
+
+docs/
+└── documentation.md                 # [Bude doplneno]
+```
+
+## Rychlý start
+
+### Instalace
+
+#### Windows – PowerShell
+
 ```powershell
-# Vytvoření virtual environment
+# vytvoření virtual environment
 python -m venv venv
 
-# Aktivace
+# aktivace
 .\venv\Scripts\Activate.ps1
 
-# Instalace závislostí
+# instalace závislostí
 pip install -r requirements.txt
 
-# Nastavení OpenAI API klíče
+# nastavení OpenAI API klíče
 echo OPENAI_API_KEY=your-key-here > .env
 ```
 
-**Command Prompt (cmd.exe):**
+#### Windows – Command Prompt (cmd)
+
 ```cmd
-# Vytvoření virtual environment
+# vytvoření virtual environment
 python -m venv venv
 
-# Aktivace
+# aktivace
 venv\Scripts\activate.bat
 
-# Instalace závislostí
+# instalace závislostí
 pip install -r requirements.txt
 
-# Nastavení OpenAI API klíče
+# nastavení OpenAI API klíče
 echo OPENAI_API_KEY=your-key-here > .env
 ```
 
-**Git Bash:**
+#### Windows – Git Bash
+
 ```bash
-# Vytvoření virtual environment
+# vytvoření virtual environment
 python -m venv venv
 
-# Aktivace
+# aktivace
 source venv/Scripts/activate
 
-# Instalace závislostí
+# instalace závislostí
 pip install -r requirements.txt
 
-# Nastavení OpenAI API klíče
+# nastavení OpenAI API klíče
 echo "OPENAI_API_KEY=your-key-here" > .env
 ```
 
-### Linux / macOS
+#### Linux / macOS
 
 ```bash
-# Vytvoření virtual environment
+# vytvoření virtual environment
 python3 -m venv venv
 
-# Aktivace
+# aktivace
 source venv/bin/activate
 
-# Instalace závislostí
+# instalace závislostí
 pip install -r requirements.txt
 
-# Nastavení OpenAI API klíče
-# Vytvoř .env soubor v kořeni projektu:
+# nastavení OpenAI API klíče
 echo "OPENAI_API_KEY=your-key-here" > .env
 ```
 
-## Spuštění
+### Spuštění
+
+#### Windows – PowerShell / cmd
 
 ```powershell
-# Spuštění demo skriptu
 python run.py
 ```
 
-Demo skript:
-1. Načte testovací text a tagy z `tests/test_data.py`
-2. Zavolá OpenAI API pro návrh tagů
-3. Vrátí seznam tagů s přesnými pozicemi v textu (span_start, span_end)
-4. Vytiskne výsledky v čitelné formě
+#### Linux / macOS
+
+```bash
+python3 run.py
+```
+
+Skript načte vzorový text a tagy z `tests/test_data.py`, zavolá variantu TagProposal uvedenou v `run.py` a vytiskne návrhy včetně spanů.
+
+## Volba varianty TagProposal
+
+- **V2** – používá `chat.completions` a pokrývá vícenásobné výskyty stejného slova. Vrací výsledky rychleji.
+- **V1** – používá `responses.parse` a přesnější dohledání spanů podle `quote + context_before`.
+
+Do budoucna se počítá s volbou varianty přímo v konfiguraci. Do té doby lze přepnout ručně v `run.py` změnou importu:
+
+```python
+from topicer.tagging.tag_proposal_v1 import TagProposalV1 as TagProposal
+# from topicer.tagging.tag_proposal_v2 import TagProposalV2 as TagProposal
+```
+
+Obě varianty vrací `TextChunkWithTagSpanProposals` a očekávají `AppConfig` z `config.yaml` + instanci `AsyncOpenAI`.
+
+## Konfigurace (`config.yaml`)
+
+- `openai.model` – výchozí `gpt-5.1`.
+- `openai.reasoning` – `none|low|medium|high` (předává se do V1; V2 běží s temperature 0).
+- `openai.span_granularity` – `word|phrase|collocation|sentence|paragraph` (hint pro V1 při volbě délky citace).
+- `weaviate.host|rest_port|grpc_port` – připraveno pro napojení na Weaviate.
 
 ## SSH tunel
 
-Projekt podporuje SSH tunelovací připojení k vzdálenému serveru. Konfiguraci najdeš v `ssh_tunnel_setup/`.
+Konfigurace a start skriptů v `ssh_tunnel_setup/` (`config.ini`, `config.sh`, `start_tunnel.py`, `start_tunnel.sh`). Tunel přesměruje např. porty 9000 → 8080 a 50055 → 50051 dle konfigurace.
 
-### Konfigurace
+## Jak to funguje
 
-**Pro Python (`config.ini`):**
-```ini
-[SSH]
-user = tvoje-uzivatelske-jmeno
-server = adresa-serveru.cz
+1. Vstup: `TextChunk` + seznam `Tag`.
+2. LLM vrátí návrhy (quote + metadata).
+3. Post-processing v Pythonu dopočítá `span_start`/`span_end`.
+4. Výstup: `TextChunkWithTagSpanProposals` připravený pro další zpracování nebo uložení.
 
-[TUNNEL_1]
-local_port = 9000
-target_host = localhost
-target_port = 8080
+## Poznámky k vývoji
 
-[TUNNEL_2]
-local_port = 50055
-target_host = localhost
-target_port = 50051
-```
-
-**Pro Bash (`config.sh`):**
-```bash
-SSH_USER="tvoje-uzivatelske-jmeno"
-SSH_SERVER="adresa-serveru.cz"
-
-TUNNEL_1_LOCAL="9000"
-TUNNEL_1_TARGET_HOST="localhost"
-TUNNEL_1_TARGET_PORT="8080"
-
-TUNNEL_2_LOCAL="50055"
-TUNNEL_2_TARGET_HOST="localhost"
-TUNNEL_2_TARGET_PORT="50051"
-```
-
-### Spuštění tunelu
-
-**Python (Windows/Linux/macOS):**
-```powershell
-python ssh_tunnel_setup/start_tunnel.py
-```
-
-**Bash (Linux/macOS):**
-```bash
-bash ssh_tunnel_setup/start_tunnel.sh
-```
-
-Tunel se spustí na pozadí a budou přesměrovány porty podle konfigurace.
-- Port 9000 → vzdálený localhost:8080
-- Port 50055 → vzdálený localhost:50051
-
-## Jak projekt funguje
-
-1. **Vstup**: Textový úsek + seznam definovaných tagů
-2. **Zpracování**: LLM vrátí relevantní tagy s přesným textem (quote)
-3. **Post-processing**: Python skript najde přesnou pozici v originálním textu
-4. **Výstup**: `TextChunkWithTagSpanProposals` s přesným mapováním
-
-### Klíčové soubory pro běh
-
-- `run.py` - Startovací skript
-- `config.yaml` - Konfigurace (OpenAI model, granularita, apod.)
-- `.env` - Skrytý soubor s OPENAI_API_KEY
-
-## Konfigurace
-
-`config.yaml` obsahuje:
-- `model` - OpenAI model (např. `gpt-4o`)
-- `reasoning` - Úsilí LLM (`low`, `medium`, `high`)
-- `span_granularity` - Velikost hledaných úseků (`word`, `phrase`, `sentence`)
-
-## Formátování kódu
-
-Projekt používá `autopep8` pro formátování Python kódu.
-
-## Závislosti
-
-- `openai` - OpenAI API klient
-- `pydantic` - Datová schémata a validace
-- `python-dotenv` - Načítání .env proměnných
-- `PyYAML` - Parsování config.yaml
-- `weaviate-client` - Klient pro vektorovou databázi
+- Potřebný `.env` s `OPENAI_API_KEY` v kořeni projektu.
+- Kód je formátovaný `autopep8`.
+- Závislosti: `openai`, `pydantic`, `python-dotenv`, `PyYAML`, `weaviate-client`.
