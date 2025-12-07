@@ -12,8 +12,10 @@ current_dir = Path(__file__).parent
 project_root = current_dir.parent.parent
 sys.path.append(str(project_root))
 
+from topicer.tagging.config import load_config 
+
 try:
-    from topicer.tagging.tag_proposals import TagProposal
+    from topicer.tagging.tag_proposal_v2 import TagProposalV2
     from topicer.schemas import TextChunk, Tag
 except ImportError as e:
     print(f"Chyba importu: {e}")
@@ -51,9 +53,9 @@ def validate_results(test_name, actual_proposals, expected_data):
                 f"Pozice: {act.span_start}-{act.span_end} (Očekáváno: {exp['span_start']}-{exp['span_end']})")
 
         # kontrola tag ID
-        if str(act.tag_id) != exp['tag_id']:
+        if str(act.tag.id) != exp['tag_id']:
             item_errors.append(
-                f"Tag ID: {act.tag_id} (Očekáváno: {exp['tag_id']})")
+                f"Tag ID: {act.tag.id} (Očekáváno: {exp['tag_id']})")
 
         # chyba
         if item_errors:
@@ -83,11 +85,15 @@ async def run_tests():
 
     inputs_dir = current_dir / "inputs"
     outputs_dir = current_dir / "outputs"
-    config_path = project_root / "config.yaml"
     outputs_dir.mkdir(exist_ok=True)
 
     client = AsyncOpenAI(api_key=api_key)
-    proposal_service = TagProposal(str(config_path), client)
+    
+    # Load the AppConfig object correctly
+    config_obj = load_config() 
+    
+    # Initialize TagProposalV2 with the AppConfig object
+    proposal_service = TagProposalV2(config_obj, client) 
 
     files = list(inputs_dir.glob("*.json"))
     total_tests = 0
@@ -117,7 +123,7 @@ async def run_tests():
 
             # Validace
             if expected is not None:
-                if validate_results(test_name, result.tag_span_proposals.proposals, expected):
+                if validate_results(test_name, result.tag_span_proposals, expected):
                     passed_tests += 1
             else:
                 print(f"   SKIP - no 'expected' in input")
