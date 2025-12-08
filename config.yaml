@@ -1,8 +1,9 @@
-weaviate:
-    host: "localhost"
-    rest_port: "8080"
-    grpc_port: "50051"
-openai:
-    reasoning: "none" # low, medium, high
+topicer:
+  cls: TagProposalV2
+  config:
+    span_granularity: "collocation"
+external_service:
+  cls: OpenAIClientWrapper
+  config:
     model: "gpt-5.1"
-    span_granularity: "collocation" # word, phrase, collocation, sentence, paragraph
+    reasoning: "high"
