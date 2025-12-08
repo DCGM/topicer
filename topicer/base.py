@@ -36,7 +36,7 @@ class TopicerFactory(CreatableMixin, ConfigurableMixin):
     topicer: BaseTopicer = ConfigurableSubclassFactory(
         BaseTopicer, desc="Variant of topicer to use")
     external_service: BaseExternalService = ConfigurableSubclassFactory(
-        BaseExternalService, desc="External service client to use")
+        BaseExternalService, desc="External service client to use", voluntary=True)
 
 
 def factory(cfg: str | dict | Config) -> BaseTopicer:
