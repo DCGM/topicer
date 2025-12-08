@@ -22,7 +22,7 @@ class BaseExternalService(ABC, ConfigurableMixin):
     ...
 
 
-class OpenAIClientWrapper(BaseExternalService, ConfigurableMixin):
+class OpenAIService(BaseExternalService, ConfigurableMixin):
     reasoning: str = ConfigurableValue(
         desc="Reasoning effort level for OpenAI calls", user_default="medium")
     model: str = ConfigurableValue(
