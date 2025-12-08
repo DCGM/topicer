@@ -1,9 +1,9 @@
 topicer:
-  cls: TagProposalV2
+  cls: TagProposalV1
   config:
     span_granularity: "collocation"
 external_service:
-  cls: OpenAIClientWrapper
+  cls: OpenAIService
   config:
     model: "gpt-5.1"
     reasoning: "high"

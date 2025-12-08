@@ -3,7 +3,7 @@
 import json
 from uuid import UUID, uuid4
 from dotenv import load_dotenv
-from topicer.base import OpenAIClientWrapper
+from topicer.base import OpenAIService
 from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals
 import logging
 from topicer.database.db_schemas import DBRequest
@@ -14,7 +14,7 @@ from classconfig import ConfigurableMixin
 class TagProposalV2(BaseTopicer, ConfigurableMixin):
 
     @property
-    def openai(self) -> OpenAIClientWrapper:
+    def openai(self) -> OpenAIService:
         return self.external_service  # nebo self.external_client, pokud nechceš .client
 
     # funkce využívá běžný client.chat.completions.

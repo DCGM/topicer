@@ -6,13 +6,13 @@ import logging
 from topicer.tagging.utils import find_exact_span
 from topicer.database.db_schemas import DBRequest
 from classconfig import ConfigurableMixin, ConfigurableValue
-from topicer.base import OpenAIClientWrapper
+from topicer.base import OpenAIService
 
 class TagProposalV1(BaseTopicer, ConfigurableMixin):
     span_granularity: str = ConfigurableValue(desc="Granularity level for span extraction", user_default="phrase")
     
     @property
-    def openai(self) -> OpenAIClientWrapper:
+    def openai(self) -> OpenAIService:
         return self.external_service  # nebo self.external_client, pokud nechceš .client
 
     async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
