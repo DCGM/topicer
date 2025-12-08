@@ -3,19 +3,20 @@
 import json
 from uuid import UUID, uuid4
 from dotenv import load_dotenv
-import os
-from openai import AsyncOpenAI
+from topicer.base import OpenAIClientWrapper
 from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals
-from topicer.tagging.tagging_schemas import AppConfig
-from typing import Literal
 import logging
 from topicer.database.db_schemas import DBRequest
+from topicer.base import BaseTopicer
+from classconfig import ConfigurableMixin
 
-class TagProposalV2:
-    def __init__(self, config: AppConfig, openai_client: AsyncOpenAI):
-        self.config = config
-        self.openai_client = openai_client
-        
+
+class TagProposalV2(BaseTopicer, ConfigurableMixin):
+
+    @property
+    def openai(self) -> OpenAIClientWrapper:
+        return self.external_service  # nebo self.external_client, pokud nechceš .client
+
     # funkce využívá běžný client.chat.completions.
     async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
         # 1. tagy do JSONu
@@ -43,10 +44,10 @@ class TagProposalV2:
         """
 
         # 4. volání OpenAI
-        
+
         try:
-            response = await self.openai_client.chat.completions.create(
-                model=self.config.openai.model,
+            response = await self.openai.client.chat.completions.create(
+                model=self.openai.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
@@ -89,11 +90,14 @@ class TagProposalV2:
                 tag_id_str = match.get("tag_id")
                 # Převod string na UUID a nalezení tagu
                 tag_uuid = UUID(tag_id_str)
-                matching_tag = next((tag for tag in tags if tag.id == tag_uuid), None) # next pouzivame pro rychlejsi nalezeni, protoze nemusime projit cely seznam
-                
+                # next pouzivame pro rychlejsi nalezeni, protoze nemusime projit cely seznam
+                matching_tag = next(
+                    (tag for tag in tags if tag.id == tag_uuid), None)
+
                 # Kontrola, zda byl tag nalezen
                 if matching_tag is None:
-                    logging.warning(f"Tag s UUID {tag_uuid} nebyl nalezen v poskytnutém listu tagů")
+                    logging.warning(
+                        f"Tag s UUID {tag_uuid} nebyl nalezen v poskytnutém listu tagů")
                     continue  # přeskočit tento match
 
                 quote = match.get("quote")
@@ -131,75 +135,6 @@ class TagProposalV2:
                 text=text_chunk.text,
                 tag_span_proposals=[],
             )
-            
+
     async def propose_tags_in_db(self, tag: Tag,  db_request: DBRequest) -> list[TextChunkWithTagSpanProposals]:
         pass
-    
-if __name__ == "__main__":
-    from tests.test_data import text_chunk, tag1, tag2, tag3
-
-    # načtení API klíče
-    load_dotenv()
-    API_KEY = os.getenv("OPENAI_API_KEY")
-    if not API_KEY:
-        print("Chyba: OPENAI_API_KEY není nastaven v .env souboru")
-        exit(1)
-
-    if __debug__:
-        print("API Key loaded" if API_KEY is not None else "API Key not found")
-
-    openai_client = AsyncOpenAI(api_key=API_KEY)
-
-    tag_proposal = TagProposalV2("config.yaml", openai_client)
-
-    # run tag proposal
-    '''
-    # propose_tags is async; run it with asyncio
-    tag_array = [tag1, tag2, tag3]
-    result = asyncio.run(tag_proposal.propose_tags(text_chunk, tag_array))
-    print(result.model_dump_json(indent=4))
-
-    converted_tags = [tag.model_dump(mode="json") for tag in tag_array]
-    print(json.dumps(converted_tags, indent=4))
-    '''
-
-    async def test_run_propose_tags(variant: Literal[1, 2, 3]):
-        chunk = TextChunk(
-            id=uuid4(),
-            text="Java je fajn, ale Python je lepší. Python se používá pro AI a backend."
-        )
-        tag_list = [
-            Tag(
-                id=uuid4(),
-                name="Programovací jazyk",
-                description="Názvy programovacích jazyků (Java, C++, Python...)"
-            ),
-            Tag(
-                id=uuid4(),
-                name="Technologie",
-                description="Obecné IT pojmy jako AI, backend, frontend."
-            )
-        ]
-
-        if __debug__:
-            print("\nVstupní text:", chunk.text)
-            print("Hledané tagy:", json.dumps([tag.model_dump(
-                mode="json") for tag in tag_list], indent=4, ensure_ascii=False), "\n")
-
-        # zavolání propose tags
-        if variant == 1:
-            # TODO nefunguje
-            result = await tag_proposal.propose_tags(chunk, tag_list)
-        elif variant == 2:
-            result = await tag_proposal.propose_tags2(chunk, tag_list)
-
-        # print výsledků
-        if __debug__:
-            print("Výsledek:")
-            print(result.model_dump_json(indent=4, ensure_ascii=False))
-
-        # zavření klienta OpenAI
-        await openai_client.close()
-
-    ### odkomentuj pro spuštění testu ###
-    # asyncio.run(test_run_propose_tags(2))
