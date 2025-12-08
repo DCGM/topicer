@@ -1,6 +1,7 @@
-# -*- coding: UTF-8 -*-
-"""
-Created on 04.12.25
+from .base import factory
+from .tagging.tag_proposal_v1 import TagProposalV1
+from .tagging.tag_proposal_v2 import TagProposalV2
 
-:author:     Martin Dočekal
-"""
+__all__ = [
+    "factory",
+]

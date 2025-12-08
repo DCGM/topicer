@@ -1,15 +1,18 @@
 # THIS FILE CONTAINS PUBLIC SCHEMAS AVAILABLE FOR IMPORTING IN OTHER PACKAGES
 
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+class TextWithSpan(BaseModel):
+    text: str
+    span_start: int | None = None
+    span_end: int | None = None
 
 class Tag(BaseModel):
     id: UUID
     name: str
     description: str | None = None
-    # examples: list[TextWithSpan] | None = None
-
+    examples: list[TextWithSpan] | None = None
 
 class TagSpanProposal(BaseModel):
     tag: Tag
@@ -17,10 +20,6 @@ class TagSpanProposal(BaseModel):
     span_end: int
     confidence: float | None = None
     reason: str | None = None
-
-
-class TagSpanProposalList(BaseModel):
-    proposals: list[TagSpanProposal]
 
 
 class TextChunk(BaseModel):
