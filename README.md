@@ -5,6 +5,7 @@ Automatické navrhování tagů (štítků) k textům pomocí LLM. Model označ�
 ## Přehled
 
 - **Jádro (`topicer/tagging/`)**
+
   - `tag_proposal_v1.py` – varianta s `Responses API`, která vrací quote + context a v Pythonu hledá přesné indexy.
   - `tag_proposal_v2.py` – varianta s `Chat Completions API`; hledá opakované výskyty podle posunutého startu.
   - `config.py` – načtení `config.yaml` do `AppConfig` (openai/weaviate).
@@ -12,15 +13,17 @@ Automatické navrhování tagů (štítků) k textům pomocí LLM. Model označ�
   - `schemas.py` – interní schémata pro LLM návrhy a konfiguraci.
 
 - **Veřejná schémata (`topicer/schemas.py`)**
+
   - `Tag`, `TextChunk`, `TagSpanProposal`, `TextChunkWithTagSpanProposals`.
 
 - **Databáze (`topicer/database/`)**
+
   - Připravené schéma pro Weaviate (`db_schemas.py`, klient `weaviate_client.py`).
 
 - **Příklady a testy**
   - `run.py` – demo s daty z `tests/test_data.py`.
   - `examples/` – ukázky konfigurace a použití.
-  - `tests/propose_tags*` – vstupní/výstupní JSONy pro manuální porovnání.
+  - `tests/propose_tags*` – testy. Spouští se `python ./tests/propose_tags/script.py`
 
 ## Struktura projektu
 
@@ -177,6 +180,11 @@ Obě varianty vrací `TextChunkWithTagSpanProposals` a očekávají `AppConfig` 
 ## SSH tunel
 
 Konfigurace a start skriptů v `ssh_tunnel_setup/` (`config.ini`, `config.sh`, `start_tunnel.py`, `start_tunnel.sh`). Tunel přesměruje např. porty 9000 → 8080 a 50055 → 50051 dle konfigurace.
+Pro spuštění SSH tunelu nastav proměnnou `SSH_USER` do .env a spusť `start_tunnel.sh`
+
+## Vypnutí SSH tunelu běžícího na pozadí
+
+`pkill -f "ssh -L"`
 
 ## Jak to funguje
 
