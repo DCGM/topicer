@@ -3,10 +3,10 @@
 import json
 from uuid import UUID, uuid4
 from dotenv import load_dotenv
-from topicer.base import OpenAIService
+from topicer.topicer.llm.openai import OpenAIService
 from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals
 import logging
-from topicer.database.db_schemas import DBRequest
+from topicer.topicer.schemas import DBRequest
 from topicer.base import BaseTopicer
 from classconfig import ConfigurableMixin
 
