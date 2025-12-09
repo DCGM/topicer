@@ -14,10 +14,13 @@ fi
 TUNNEL_1="-L ${TUNNEL_1_LOCAL}:${TUNNEL_1_TARGET_HOST}:${TUNNEL_1_TARGET_PORT}"
 
 # Construction of the second tunnel
-TUNNEL_2="-L ${TUNNEL_2_LOCAL}:${TUNNEL_2_TARGET_HOST}:${TUNNEL_2_TARGET_PORT}"
+TUNNEL_2="-L ${TUNNEL_2_LOCAL}:${TUNNEL_2_TARGET_HOST}:${TUNNEL_2_TARGET_PORT}" 
+
+# Construction of the third tunnel
+TUNNEL_3="-L ${TUNNEL_3_LOCAL}:${TUNNEL_3_TARGET_HOST}:${TUNNEL_3_TARGET_PORT}"
 
 # Construction of the entire ssh command
-SSH_COMMAND="ssh ${TUNNEL_1} ${TUNNEL_2} ${SSH_USER}@${SSH_SERVER}"
+SSH_COMMAND="ssh ${TUNNEL_1} ${TUNNEL_2} ${TUNNEL_3} ${SSH_USER}@${SSH_SERVER}"
 
 echo "--- Starting SSH tunnels ---"
 echo "Command: ${SSH_COMMAND}"
