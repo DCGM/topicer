@@ -7,3 +7,10 @@ external_service:
   config:
     model: "gpt-5.1"
     reasoning: "high"
+
+embedding_service:
+  cls: DefaultEmbeddingService
+  config:
+    service_url: "http://localhost:9001"
+    endpoint: "/embed_query"
+    timeout: 5
