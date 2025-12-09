@@ -1,0 +1,1 @@
+*.large_fixture filter=lfs diff=lfs merge=lfs -text
