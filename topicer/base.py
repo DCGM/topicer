@@ -134,11 +134,11 @@ class BaseEmbeddingService(ABC, ConfigurableMixin):
     """Base interface for text embedding services."""
     
     @abstractmethod
-    def embed(self, text_chunks: list[str] | str, normalize: bool | None = None) -> np.ndarray:
+    def embed(self, text_chunks: list[str] | str, prompt: str | None = None, normalize: bool | None = None) -> np.ndarray:
         ...
 
     @abstractmethod
-    def embed_queries(self, queries: list[str], prompt: str, normalize: bool | None = None) -> np.ndarray:
+    def embed_queries(self, queries: list[str], normalize: bool | None = None) -> np.ndarray:
         ...
 
 
