@@ -106,11 +106,11 @@ class BaseTopicer(ABC, ConfigurableMixin):
 class BaseLLMService(ABC, ConfigurableMixin):
     """Base interface for LLM services."""
     @abstractmethod
-    def process_text_chunks(self, text_chunks: list[str], instruction: str, model: str | None = None) -> list[str]:
+    async def process_text_chunks(self, text_chunks: list[str], instruction: str, model: str | None = None) -> list[str]:
         ...
 
     @abstractmethod
-    def process_text_chunks_structured(self, text_chunks: list[str], instruction: str, output_type: BaseModel, model: str | None = None) -> list[BaseModel]:
+    async def process_text_chunks_structured(self, text_chunks: list[str], instruction: str, output_type: BaseModel, model: str | None = None) -> list[BaseModel]:
         ...
 
 
