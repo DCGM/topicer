@@ -18,7 +18,7 @@ class StructuredOutput(BaseModel):
 
 async def call_run(args):
     """
-    Method for running Fast Topic Discovery.
+    Method for running the LLM API example, demonstrating basic and structured output calls.
 
     :param args: User arguments.
     """
