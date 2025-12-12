@@ -48,7 +48,7 @@ async def call_run(args):
 
 async def call_create_config(args):
     """
-    Method for creating configuration for Fast Topic Discovery.
+    Method for creating configuration for LLM API.
 
     :param args: User arguments.
     """
