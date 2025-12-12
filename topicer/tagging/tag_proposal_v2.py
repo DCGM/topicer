@@ -5,11 +5,11 @@ import logging
 from uuid import UUID
 
 from classconfig import ConfigurableMixin
-from topicer.schemas import DBRequest
+
 
 from topicer.base import BaseTopicer
 from topicer.llm.openai import OpenAIService
-from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals
+from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals, DBRequest
 
 
 class TagProposalV2(BaseTopicer, ConfigurableMixin):
