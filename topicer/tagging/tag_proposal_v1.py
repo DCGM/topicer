@@ -4,9 +4,9 @@ from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpa
 from topicer.tagging.tagging_schemas import LLMTagProposalList
 import logging
 from topicer.tagging.utils import find_exact_span
-from topicer.topicer.schemas import DBRequest
+from topicer.schemas import DBRequest
 from classconfig import ConfigurableMixin, ConfigurableValue
-from topicer.topicer.llm_service.openai import OpenAIService
+from topicer.llm.openai import OpenAIService
 
 class TagProposalV1(BaseTopicer, ConfigurableMixin):
     span_granularity: str = ConfigurableValue(desc="Granularity level for span extraction", user_default="phrase")

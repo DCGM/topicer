@@ -1,14 +1,15 @@
 # varianta - Marek Sucharda
 
 import json
-from uuid import UUID, uuid4
-from dotenv import load_dotenv
-from topicer.topicer.llm.openai import OpenAIService
-from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals
 import logging
-from topicer.topicer.schemas import DBRequest
-from topicer.base import BaseTopicer
+from uuid import UUID
+
 from classconfig import ConfigurableMixin
+from topicer.schemas import DBRequest
+
+from topicer.base import BaseTopicer
+from topicer.llm.openai import OpenAIService
+from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals
 
 
 class TagProposalV2(BaseTopicer, ConfigurableMixin):
