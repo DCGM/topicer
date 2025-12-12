@@ -18,8 +18,9 @@ class StructuredOutput(BaseModel):
 
 async def call_run(args):
     """
-    Method for running Fast Topic Discovery.
+    Method for running the LLM API example.
 
+    Demonstrates how to process text chunks and obtain both plain and structured responses using the OllamaAsyncAPI.
     :param args: User arguments.
     """
 
