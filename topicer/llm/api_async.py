@@ -58,7 +58,7 @@ class APIAsync(BaseLLMService, CreatableMixin):
         :param instruction: Instruction for processing.
         :param output_type: Expected output type.
         :param model: Model to use for processing.
-        :return: Processed requests with
+        :return: An async generator yielding tuples of (index, result), where index is the position of the text chunk and result is the processed output (str or BaseModel).
         """
 
         async def process_with_index(index: int, chunk: str):
