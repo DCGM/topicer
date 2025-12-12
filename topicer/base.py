@@ -1,7 +1,7 @@
-import os
 from abc import ABC, abstractmethod
 from typing import Sequence, Type
-from pydantic import BaseModel
+
+import numpy as np
 from classconfig import (
     CreatableMixin,
     ConfigurableMixin,
@@ -9,9 +9,10 @@ from classconfig import (
     Config,
 )
 from dotenv import load_dotenv
-import numpy as np
+from pydantic import BaseModel
 
-from topicer.schemas import DBRequest, DiscoveredTopics,DiscoveredTopicsSparse, Tag, TextChunk, TextChunkWithTagSpanProposals
+from topicer.schemas import DBRequest, DiscoveredTopics, DiscoveredTopicsSparse, Tag, TextChunk, \
+    TextChunkWithTagSpanProposals
 
 
 class MissingServiceError(Exception):
