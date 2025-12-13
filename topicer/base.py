@@ -1,7 +1,7 @@
-import os
 from abc import ABC, abstractmethod
-from typing import Sequence
-from pydantic import BaseModel
+from typing import Sequence, Type
+
+import numpy as np
 from classconfig import (
     CreatableMixin,
     ConfigurableMixin,
@@ -9,9 +9,10 @@ from classconfig import (
     Config,
 )
 from dotenv import load_dotenv
-import numpy as np
+from pydantic import BaseModel
 
-from topicer.schemas import DBRequest, DiscoveredTopics,DiscoveredTopicsSparse, Tag, TextChunk, TextChunkWithTagSpanProposals
+from topicer.schemas import DBRequest, DiscoveredTopics, DiscoveredTopicsSparse, Tag, TextChunk, \
+    TextChunkWithTagSpanProposals
 
 
 class MissingServiceError(Exception):
@@ -106,11 +107,11 @@ class BaseTopicer(ABC, ConfigurableMixin):
 class BaseLLMService(ABC, ConfigurableMixin):
     """Base interface for LLM services."""
     @abstractmethod
-    def process_text_chunks(self, text_chunks: list[str], instruction: str, model: str | None = None) -> list[str]:
+    async def process_text_chunks(self, text_chunks: list[str], instruction: str, model: str | None = None) -> list[str]:
         ...
 
     @abstractmethod
-    def process_text_chunks_structured(self, text_chunks: list[str], instruction: str, output_type: BaseModel, model: str | None = None) -> list[BaseModel]:
+    async def process_text_chunks_structured(self, text_chunks: list[str], instruction: str, output_type: Type[BaseModel], model: str | None = None) -> list[BaseModel]:
         ...
 
 

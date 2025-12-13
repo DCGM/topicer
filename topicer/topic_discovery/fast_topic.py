@@ -16,7 +16,7 @@ from topmost.preprocess.preprocess import Tokenizer, Preprocess
 from topicer.llm_api import APIAsync, OpenAsyncAPI, APIRequest
 from topicer.schemas import DBRequest, DiscoveredTopics, TextChunk, DiscoveredTopicsSparse, Topic
 from topicer.topic_discovery import TopicDiscovery
-from topicer.topic_discovery.embedder import DocEmbedder
+from topicer.embedding.local import LocalEmbedder
 from fastopic import FASTopic
 
 from topicer.utils.template import TemplateTransformer, Template
@@ -41,8 +41,8 @@ class FastTopicDiscovery(TopicDiscovery, ConfigurableMixin, CreatableMixin):
         desc="Asynchronous LLM API used for obtaining topic names and descriptions.",
         user_default=OpenAsyncAPI,
     )
-    embedder: DocEmbedder = ConfigurableFactory(
-        DocEmbedder,
+    embedder: LocalEmbedder = ConfigurableFactory(
+        LocalEmbedder,
         desc="Document embedder used to convert texts into embeddings for topic discovery.",
     )
     tokenizer: Tokenizer = ConfigurableSubclassFactory(

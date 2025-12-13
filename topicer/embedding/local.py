@@ -3,12 +3,18 @@ import logging
 import numpy as np
 import torch
 from classconfig import ConfigurableValue, RelativePathTransformer, ConfigurableMixin, CreatableMixin
-from numpy._typing import NDArray
 from ruamel.yaml.scalarstring import LiteralScalarString
 from sentence_transformers import SentenceTransformer
 
+from topicer.base import BaseEmbeddingService
 
-class DocEmbedder(ConfigurableMixin, CreatableMixin):
+
+class LocalEmbedder(BaseEmbeddingService, ConfigurableMixin, CreatableMixin):
+    """
+    Configurable embedder that runs locally.
+
+    The embedder is based on sentence-transformers library.
+    """
     model: str = ConfigurableValue(
         desc="Any model name from sentence-transformers library or compatible model from huggingface hub.",
         user_default="BAAI/bge-multilingual-gemma2"
@@ -24,6 +30,11 @@ class DocEmbedder(ConfigurableMixin, CreatableMixin):
         voluntary=True,
         user_default=LiteralScalarString("""<instruct>Represent this Czech historical document to find similar ones.
         <query>""")
+    )
+    query_prompt: str | None = ConfigurableValue(
+        desc="Query prompt for the embedding model, used for query embedding methods.",
+        voluntary=True,
+        user_default=None
     )
     batch_size: int = ConfigurableValue(
         desc="Batch size for encoding documents.",
@@ -46,6 +57,11 @@ class DocEmbedder(ConfigurableMixin, CreatableMixin):
         user_default=False,
         voluntary=True,
     )
+    show_progress_bar: bool = ConfigurableValue(
+        desc="Whether to show a progress bar during embedding.",
+        user_default=False,
+        voluntary=True,
+    )
 
     def __post_init__(self):
         kwargs = {}
@@ -57,21 +73,24 @@ class DocEmbedder(ConfigurableMixin, CreatableMixin):
             self.model, cache_folder=self.cache_folder, model_kwargs=kwargs, device=self.device
         )
 
-    def encode(self, docs: list[str], show_progress_bar: bool = False, normalize_embeddings: bool | None = None) -> NDArray:
+    def embed(self, text_chunks: list[str] | str, prompt: str | None = None, normalize: bool | None = None) -> np.ndarray:
         """
         Encodes given documents into embeddings.
 
-        :param docs: list of documents to encode
-        :param show_progress_bar: whether to show a progress bar during encoding
-        :param normalize_embeddings: whether to normalize the embeddings using L2 normalization
-            if not provided, uses the default setting
-        :return: list of embeddings
+        :param text_chunks: list of text chunks
+        :param prompt: prompt for the embedding model
+            If None it will use the default prompt from configuration.
+        :param normalize: whether to normalize the embeddings using L2 normalization
+        :return: embeddings in form of numpy array TEXT_CHUNKS X DIMENSION
         """
+        if isinstance(text_chunks, str):
+            text_chunks = [text_chunks]
+
         embeddings = self.transformer.encode(
-            docs,
-            prompt=self.prompt,
-            show_progress_bar=show_progress_bar,
-            normalize_embeddings=self.normalize_embeddings if normalize_embeddings is None else normalize_embeddings,
+            text_chunks,
+            prompt=self.prompt if prompt is None else prompt,
+            show_progress_bar=self.show_progress_bar,
+            normalize_embeddings=self.normalize_embeddings if normalize is None else normalize,
             batch_size=self.batch_size
         )
 
@@ -79,3 +98,13 @@ class DocEmbedder(ConfigurableMixin, CreatableMixin):
             embeddings = embeddings.astype(np.float32)
 
         return embeddings
+
+    def embed_queries(self, queries: list[str], normalize: bool | None = None) -> np.ndarray:
+        """
+        Encodes given queries into embeddings using default query prompt if available.
+
+        :param queries: list of queries to encode
+        :param normalize: whether to normalize the embeddings using L2 normalization
+        :return: embeddings in form of numpy array TEXT_CHUNKS X DIMENSION
+        """
+        return self.embed(queries, prompt=self.query_prompt, normalize=normalize)
