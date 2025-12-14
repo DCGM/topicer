@@ -1,5 +1,6 @@
 import asyncio
 import copy
+import random
 from typing import Sequence
 
 import numpy as np
@@ -13,6 +14,7 @@ from topmost.preprocess.preprocess import Tokenizer, Preprocess
 from topicer.base import BaseTopicer, MissingServiceError, BaseEmbeddingService
 from topicer.schemas import DBRequest, DiscoveredTopics, TextChunk, DiscoveredTopicsSparse, Topic, Tag, \
     TextChunkWithTagSpanProposals
+from topicer.topic_discovery.time_text_detector import TimeTextDetector, CzechTimeTextDetector
 from topicer.utils.template import TemplateTransformer, Template
 from topicer.utils.tokenizers import CzechLemmatizedTokenizer
 
@@ -50,6 +52,13 @@ class GenerateTopicNameResponse(BaseModel):
     name: str = Field(..., description="Name given to the topic.")
 
 
+class GenerateTopicDescriptionResponse(BaseModel):
+    """
+    Schema for the response from the topic description generation LLM.
+    """
+    description: str = Field(..., description="Description of the topic.")
+
+
 class FastTopicDiscovery(BaseTopicer, ConfigurableMixin, CreatableMixin):
     """
     Performs topic discovery using FastTopic library (https://github.com/bobxwu/FASTopic).
@@ -77,7 +86,19 @@ class FastTopicDiscovery(BaseTopicer, ConfigurableMixin, CreatableMixin):
         desc="Number of top documents to represent each topic.",
         user_default=3,
     )
+    topic_doc_search_time: int = ConfigurableValue(
+        desc="Number of top documents to search for time phrases when generating topic descriptions.",
+        user_default=100,
+    )
+    topic_time_doc_rep_size: int = ConfigurableValue(
+        desc="Number of documents with time phrases to represent each topic when generating topic descriptions. These documents will be randomly selected.",
+        user_default=3,
+    )
     generate_topic_name_model: str = ConfigurableValue(
+        desc="Model to use for generating topic names.",
+        user_default="gpt-5-mini",
+    )
+    generate_description_model: str = ConfigurableValue(
         desc="Model to use for generating topic names.",
         user_default="gpt-5-mini",
     )
@@ -126,6 +147,54 @@ Dokumenty:
         transform=TemplateTransformer()
     )
 
+    generate_description_system_prompt: Template = ConfigurableValue(
+        desc="System prompt for generating topic descriptions based on time phrases.",
+        user_default=LiteralScalarString("""Vytvoř popis tématu na základě názvu tématu, dokumentů reprezentujících téma a dokumentů obsahujících časové výrazy.
+Ve svém popisu se zaměř na časové události a jejich význam v kontextu tématu.
+
+Příklad:
+
+Název tématu: Středověká Evropa
+
+Dokumenty reprezentující téma:
+Praha byla významným centrem během středověku.
+Proběhlo mnoho důležitých událostí v Evropě během středověku.
+
+Dokumenty s časovými výrazy:
+Dokument 1: Karel IV. se narodil ve 14. století.
+Dokument 2: Bitva u Hastings v roce 1066 byla klíčovou událostí.
+
+Popis tématu:
+Téma "Středověká Evropa" zahrnuje období od 5. do 15. století, které bylo svědkem významných historických událostí, jako je narození Karla IV. ve 14. století a Bitva u Hastings v roce 1066.
+
+Vrať pouze popis tématu bez dalších vysvětlení ve formátu JSON:
+{
+    "description": "Popis tématu"
+}
+
+Důležité: Výstupem musí být pouze tento JSON, bez dalšího textu.
+Důležité: Cílit na časové události a jejich význam v kontextu tématu.
+"""),
+        transform=TemplateTransformer()
+    )
+
+    generate_description_prompt: Template = ConfigurableValue(
+        desc="Jinja2 template prompt for generating topic descriptions based on time phrases.",
+        user_default=LiteralScalarString("""Název tématu: {{ topic_name }}
+Dokumenty reprezentující téma:
+{% for doc in topic_docs %}
+{{doc.text}}
+{% endfor %}
+Dokumenty s časovými výrazy:
+{% for doc in time_docs %}
+{{doc.text}}
+{% endfor %}
+
+Popis tématu:"""),
+        transform=TemplateTransformer()
+    )
+
+
     sparse_threshold: float = ConfigurableValue(
         desc="Threshold for sparsity in topic-document distributions. Can be combined with sparse_top_k.",
         user_default=0.01,
@@ -142,6 +211,13 @@ Dokumenty:
         desc="Maximum character length of texts. Longer texts will be truncated from the end before processing.",
         user_default=1024,
         validator=lambda value: value > 0,
+        voluntary=True
+    )
+
+    time_text_detector: TimeTextDetector = ConfigurableSubclassFactory(
+        TimeTextDetector,
+        desc="Detector for finding time expressions in text.",
+        user_default=CzechTimeTextDetector,
         voluntary=True
     )
 
@@ -217,10 +293,6 @@ Dokumenty:
             docs=[text.text for text in texts]
         )
         return top_words, doc_topic_dist
-
-    async def discover_topics_in_db(self, db_request: DBRequest, n: int | None = None,
-                                    sparse: bool = True) -> DiscoveredTopics | DiscoveredTopicsSparse:
-        pass
 
     @staticmethod
     def truncate_texts(texts: Sequence[TextChunk], max_char_length: int) -> Sequence[TextChunk]:
@@ -329,27 +401,82 @@ Dokumenty:
 
         topic_names = [None] * len(top_words)  # Pre-allocate list to maintain order
 
-        async def process_and_store(index: int, words: list[str], docs: list[TextChunk]):
+        text_chunks = []
+        for words, docs in zip(top_words, top_docs_per_topic):
             prompt = self.generate_topic_name_prompt.render({
                 "topic_words": words,
                 "topic_docs": docs
             })
+            text_chunks.append(prompt)
 
-            api_output = await self.llm_service.process_text_chunks_structured(
-                text_chunks=[prompt],
-                instruction=self.generate_topic_name_system_prompt.render({}),
-                output_type=GenerateTopicNameResponse,
-                model=self.generate_topic_name_model
-            )
-            api_output = api_output[0]
 
-            topic_names[index] = (api_output.name, api_output.explanation)
+        api_output = await self.llm_service.process_text_chunks_structured(
+            text_chunks=text_chunks,
+            instruction=self.generate_topic_name_system_prompt.render({}),
+            output_type=GenerateTopicNameResponse,
+            model=self.generate_topic_name_model
+        )
 
-        async with asyncio.TaskGroup() as tg:
-            for i, (words, docs) in enumerate(zip(top_words, top_docs_per_topic)):
-                tg.create_task(process_and_store(i, words, docs))
+        res = [(output.name, output.explanation) for output in api_output]
+        return res
 
-        return topic_names
+    async def _generate_time_based_topic_descriptions(self, topic_names: list[str],
+                                                      top_docs_per_topic: list[list[TextChunk]],
+                                                      top_time_docs_per_topic: list[list[TextChunk]]) -> list[str]:
+        """
+        Generates topic descriptions based on time phrases found in documents.
+
+        :param topic_names: List of topic names.
+        :param top_docs_per_topic: List of lists containing top documents for each topic.
+        :param top_time_docs_per_topic: List of lists containing top documents with time phrases for each topic.
+        :return: List of topic descriptions.
+        """
+
+        text_chunks = []
+        for name, topic_docs, time_docs in zip(topic_names, top_docs_per_topic, top_time_docs_per_topic):
+            prompt = self.generate_description_prompt.render({
+                "topic_name": name,
+                "topic_docs": topic_docs,
+                "time_docs": time_docs
+            })
+            text_chunks.append(prompt)
+
+        api_outputs = await self.llm_service.process_text_chunks_structured(
+            text_chunks=text_chunks,
+            instruction=self.generate_description_system_prompt.render({}),
+            output_type=GenerateTopicDescriptionResponse,
+            model=self.generate_description_model
+        )
+        topic_descriptions = [output.description for output in api_outputs]
+        return topic_descriptions
+
+    async def _get_time_docs_per_topic(self, topic_doc_dist: NDArray, texts: Sequence[TextChunk]) -> list[list[TextChunk]]:
+        """
+        Retrieves the top documents containing time phrases for each topic.
+
+        :param topic_doc_dist: document distributions of topics (topic-doc distributions), a numpy array with shape A × B (number of topics A and number of documents B ).
+        :param texts: Original text chunks.
+        :return: List of randomly selected documents with time phrases for each topic.
+        """
+
+        top_docs_per_topic = await asyncio.to_thread(
+            self.get_top_k_docs_per_topic, topic_doc_dist=topic_doc_dist, texts=texts, k=self.topic_doc_search_time
+        )
+
+        time_docs_per_topic = []
+        for docs in top_docs_per_topic:
+            time_docs = []
+            for doc in docs:
+                detected_times = self.time_text_detector(doc.text)
+                if detected_times:
+                    time_docs.append(doc)
+
+            if len(time_docs) <= self.topic_time_doc_rep_size:
+                time_docs_per_topic.append(time_docs)
+            else:
+                time_docs_per_topic.append(random.sample(time_docs, self.topic_time_doc_rep_size))
+
+        return time_docs_per_topic
 
     async def _process_topics(self, top_words: list[str], doc_topic_dist: NDArray, texts: Sequence[TextChunk],
                               sparse: bool) -> DiscoveredTopics | DiscoveredTopicsSparse:
@@ -370,9 +497,17 @@ Dokumenty:
         top_words = [words.split() for words in top_words]
         topic_names_with_explanation = await self._generate_topic_names(top_words, top_docs_per_topic)
 
+        top_time_docs_per_topic = await self._get_time_docs_per_topic(topic_doc_dist, texts)
+        topic_descriptions = await self._generate_time_based_topic_descriptions(
+            [name for name, _ in topic_names_with_explanation],
+            top_docs_per_topic,
+            top_time_docs_per_topic
+        )
+
         topics = [
-            Topic(name=name, name_explanation=explanation) for name, explanation in topic_names_with_explanation
+            Topic(name=name, name_explanation=explanation, description=topic_descriptions[i]) for i, (name, explanation) in enumerate(topic_names_with_explanation)
         ]
+
         if sparse:
             topic_doc_dist = await asyncio.to_thread(
                 self.sparsify_topic_document_distribution,
