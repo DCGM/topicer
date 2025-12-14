@@ -1,7 +1,5 @@
 from typing import Sequence
 from pathlib import Path
-import requests
-import zipfile
 import logging
 
 import torch
@@ -13,7 +11,7 @@ from topicer.schemas import DiscoveredTopicsSparse, TagSpanProposal, TextChunk, 
 
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG, force=True)
+
 
 class FailedToLoadModelError(Exception):
     pass
@@ -27,8 +25,6 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
     gap_tolerance: int = ConfigurableValue(desc="", user_default=0)
     normalize_score: bool = ConfigurableValue(desc="", user_default=True)
     soft_max_score: bool = ConfigurableValue(desc="", user_default=False)
-    default_model_url: str = "https://nextcloud.fit.vutbr.cz/s/FqJcdFoZpbnLTsK/download"
-    default_model_cache_path: Path = Path.home() / ".cache" / "topicer" / "cross_bert_model"
     loaded_from_huggingface: bool = False
 
     def __post_init__(self):
@@ -50,12 +46,14 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
 
     def load_model(self):
         try:
-            self.load_model_from_hf,
+            self.load_model_from_hf()
+            return
         except (OSError, ValueError):
             pass
 
         try:
             self.load_local_model()
+            return
         except (OSError, ValueError):
             raise FailedToLoadModelError(f"Failed to load CrossBertTopicer model from both HuggingFace and local path: {self.model}")
 
