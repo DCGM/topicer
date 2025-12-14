@@ -23,7 +23,3 @@ def test_czech_time_text_detector_with_entities(detector):
 
     assert detector(text)
 
-
-
-
-    
