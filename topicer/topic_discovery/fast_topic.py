@@ -87,7 +87,7 @@ class FastTopicDiscovery(BaseTopicer, ConfigurableMixin, CreatableMixin):
         user_default=3,
     )
     topic_doc_search_time: int = ConfigurableValue(
-        desc="Number of top documents to search for time phrases when generating topic descriptions.",
+        desc="Number of top documents per topic to search for time phrases when generating topic descriptions.",
         user_default=100,
     )
     topic_time_doc_rep_size: int = ConfigurableValue(
