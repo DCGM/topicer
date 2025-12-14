@@ -5,12 +5,38 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "topicer"
 version = "0.1.0"
-description = "Topic extraction tools"
+description = "Topic discovery and text tagging tool"
 authors = [
-    { name = "Your Name", email = "you@example.com" }
+    { name = "Michal Hradiš", email = "ihradis@fit.vutbr.cz" },
+    { name = "Martin Dočekal", email = "idocekal@fit.vutbr.cz" },
+    { name = "Martin Kišš", email = "ikiss@fit.vutbr.cz" },
+    { name = "Martin Kostelní", email = "ikostelnin@fit.vutbr.cz" },
+    { name = "Richard Juřica", email = "you@example.com" }
 ]
+maintainers = [
+  {email = "ihradis@fit.vutbr.cz", name = "Michal Hradiš"}
+]
+dynamic = ["dependencies"]
+classifiers=[
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+]
+
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 
 [tool.setuptools]
 packages = ["topicer"]
+include-package-data = false
+
+[tool.setuptools.package-dir]
+"topicer" = "topicer"
+
+[tool.setuptools.dynamic]
+dependencies = {file = "requirements.txt"}
+
+[project.urls]
+homepage = "https://semant.cz/"
+repository = "https://github.com/DCGM/topicer"
+
