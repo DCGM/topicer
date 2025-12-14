@@ -1,26 +1,45 @@
 import asyncio
 import copy
-import uuid
-import json_repair
-
 from typing import Sequence
 
 import numpy as np
-from classconfig import ConfigurableMixin, CreatableMixin, ConfigurableValue, ConfigurableFactory, \
-    ConfigurableSubclassFactory
+from classconfig import ConfigurableMixin, CreatableMixin, ConfigurableValue, ConfigurableSubclassFactory
+from fastopic import FASTopic
 from numpy._typing import NDArray
 from pydantic import BaseModel, Field
 from ruamel.yaml.scalarstring import LiteralScalarString
 from topmost.preprocess.preprocess import Tokenizer, Preprocess
 
-from topicer.llm_api import APIAsync, OpenAsyncAPI, APIRequest
-from topicer.schemas import DBRequest, DiscoveredTopics, TextChunk, DiscoveredTopicsSparse, Topic
-from topicer.topic_discovery import TopicDiscovery
-from topicer.embedding.local import LocalEmbedder
-from fastopic import FASTopic
-
+from topicer.base import BaseTopicer, MissingServiceError, BaseEmbeddingService
+from topicer.schemas import DBRequest, DiscoveredTopics, TextChunk, DiscoveredTopicsSparse, Topic, Tag, \
+    TextChunkWithTagSpanProposals
 from topicer.utils.template import TemplateTransformer, Template
 from topicer.utils.tokenizers import CzechLemmatizedTokenizer
+
+
+class EmbeddingServiceWrapper:
+    """
+    Wrapper for embedding service to be used in FASTopic.
+    """
+    def __init__(self, embedding_service: BaseEmbeddingService):
+        self.embedding_service = embedding_service
+
+    def encode(self, docs: list[str], normalize_embeddings: bool | None = None, show_progress_bar: bool = False) -> NDArray:
+        """
+        Encodes given documents into embeddings.
+
+        :param docs: list of documents to encode
+        :param normalize_embeddings: whether to normalize the embeddings using L2 normalization
+            if not provided, uses the default setting
+        :param show_progress_bar: this parameter is ignored, present for compatibility
+        :return: list of embeddings
+        """
+        embeddings = self.embedding_service.embed(
+            text_chunks=docs,
+            normalize=normalize_embeddings
+        )
+
+        return embeddings
 
 
 class GenerateTopicNameResponse(BaseModel):
@@ -31,20 +50,12 @@ class GenerateTopicNameResponse(BaseModel):
     name: str = Field(..., description="Name given to the topic.")
 
 
-class FastTopicDiscovery(TopicDiscovery, ConfigurableMixin, CreatableMixin):
+class FastTopicDiscovery(BaseTopicer, ConfigurableMixin, CreatableMixin):
     """
     Performs topic discovery using FastTopic library (https://github.com/bobxwu/FASTopic).
     """
     n_topics: int = ConfigurableValue(desc="Number of topics to discover.", user_default=10)
-    api: APIAsync = ConfigurableSubclassFactory(
-        APIAsync,
-        desc="Asynchronous LLM API used for obtaining topic names and descriptions.",
-        user_default=OpenAsyncAPI,
-    )
-    embedder: LocalEmbedder = ConfigurableFactory(
-        LocalEmbedder,
-        desc="Document embedder used to convert texts into embeddings for topic discovery.",
-    )
+
     tokenizer: Tokenizer = ConfigurableSubclassFactory(
         Tokenizer,
         desc="Tokenizer used to preprocess texts before topic discovery.",
@@ -134,10 +145,70 @@ Dokumenty:
         voluntary=True
     )
 
-    async def discover_topics(self, texts: Sequence[TextChunk], n: int | None = None,
-                              sparse: bool = True) -> DiscoveredTopics | DiscoveredTopicsSparse:
-        texts = copy.deepcopy(texts)
-        self.truncate_texts(texts, self.max_char_length)
+    def set_embedding_service(self, embedding_service: 'BaseEmbeddingService') -> None:
+        self.embedding_service = embedding_service
+        self.embedding_service_wrapper = EmbeddingServiceWrapper(embedding_service)
+
+    def check_init(self) -> None:
+        """Check if all required services are set. Raise MissingServiceError if not."""
+        if self.llm_service is None:
+            raise MissingServiceError("LLM service is not set.")
+
+        if self.embedding_service is None:
+            raise MissingServiceError("Embedding service is not set.")
+
+        # db_connection is optional for topic discovery
+
+    async def discover_topics_sparse(self, texts: Sequence[TextChunk], n: int | None = None) -> DiscoveredTopicsSparse:
+        texts = self.truncate_texts(texts, self.max_char_length)
+        top_words, doc_topic_dist = await self._get_topics(texts=texts, n=n)
+        return await self._process_topics(
+            top_words=top_words,
+            doc_topic_dist=doc_topic_dist,
+            texts=texts,
+            sparse=True
+        )
+
+    async def discover_topics_dense(self, texts: Sequence[TextChunk], n: int | None = None) -> DiscoveredTopics:
+        texts = self.truncate_texts(texts, self.max_char_length)
+        top_words, doc_topic_dist = await self._get_topics(texts=texts, n=n)
+        return await self._process_topics(
+            top_words=top_words,
+            doc_topic_dist=doc_topic_dist,
+            texts=texts,
+            sparse=False
+        )
+
+    async def discover_topics_in_db_sparse(self, db_request: DBRequest, n: int | None = None) -> DiscoveredTopicsSparse:
+        if self.db_connection is None:
+            raise MissingServiceError("DB connection has to be set for DB topic discovery.")
+
+        texts = self.db_connection.get_text_chunks(db_request)
+        return await self.discover_topics_sparse(texts=texts, n=n)
+
+    async def discover_topics_in_db_dense(self, db_request: DBRequest, n: int | None = None) -> DiscoveredTopics:
+        if self.db_connection is None:
+            raise MissingServiceError("DB connection has to be set for DB topic discovery.")
+
+        texts = self.db_connection.get_text_chunks(db_request)
+        return await self.discover_topics_dense(texts=texts, n=n)
+
+    async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
+        raise NotImplementedError()
+
+    async def propose_tags_in_db(self, tag: Tag, db_request: DBRequest) -> list[TextChunkWithTagSpanProposals]:
+        raise NotImplementedError()
+
+    async def _get_topics(self, texts: Sequence[TextChunk], n: int | None = None) -> tuple[list[str], NDArray]:
+        """
+        Discovers topics using the FASTopic model.
+
+        :param texts: Sequence of TextChunk objects.
+        :param n: Optional number of topics to discover. If None, uses the default from
+        :return: Tuple containing:
+            - List of top words for each topic.
+            - Document-topic distribution matrix.
+        """
 
         model = await asyncio.to_thread(self._create_fastopic_model, n=n)
 
@@ -145,30 +216,28 @@ Dokumenty:
             model.fit_transform,
             docs=[text.text for text in texts]
         )
-
-        return await self._process_topics(
-            top_words=top_words,
-            doc_topic_dist=doc_topic_dist,
-            texts=texts,
-            sparse=sparse
-        )
+        return top_words, doc_topic_dist
 
     async def discover_topics_in_db(self, db_request: DBRequest, n: int | None = None,
                                     sparse: bool = True) -> DiscoveredTopics | DiscoveredTopicsSparse:
         pass
 
     @staticmethod
-    def truncate_texts(texts: Sequence[TextChunk], max_char_length: int):
+    def truncate_texts(texts: Sequence[TextChunk], max_char_length: int) -> Sequence[TextChunk]:
         """
         Truncates texts to the specified maximum character length.
-        Works in-place.
 
         :param texts: Sequence of TextChunk objects.
         :param max_char_length: Maximum character length for each text.
+        :return: Sequence of truncated TextChunk objects. Makes a deep copy of the input texts.
         """
+        texts = copy.deepcopy(texts)
+
         for text_chunk in texts:
             if len(text_chunk.text) > max_char_length:
                 text_chunk.text = text_chunk.text[:max_char_length]
+
+        return texts
 
     def _create_fastopic_model(self, n: int | None = None) -> FASTopic:
         """
@@ -182,9 +251,9 @@ Dokumenty:
             num_topics=self.n_topics if n is None else n,
             preprocess=preprocessing,
             num_top_words=self.topic_rep_size,
-            doc_embed_model=self.embedder,
+            doc_embed_model=self.embedding_service_wrapper,
             verbose=self.verbose,
-            normalize_embeddings=self.embedder.normalize_embeddings # Fast topic passes this to encode method
+            normalize_embeddings=self.embedding_service.normalize_embeddings if hasattr(self.embedding_service, 'normalize_embeddings') else False,
         )
         return model
 
@@ -266,23 +335,15 @@ Dokumenty:
                 "topic_docs": docs
             })
 
-            request = APIRequest(
-                custom_id=f"generate_topic_name_{uuid.uuid4()}",
-                model=self.generate_topic_name_model,
-                messages=[
-                    {"role": "system", "content": self.generate_topic_name_system_prompt.render({})},
-                    {"role": "user", "content": prompt}
-                ],
-                response_format=GenerateTopicNameResponse,
+            api_output = await self.llm_service.process_text_chunks_structured(
+                text_chunks=[prompt],
+                instruction=self.generate_topic_name_system_prompt.render({}),
+                output_type=GenerateTopicNameResponse,
+                model=self.generate_topic_name_model
             )
+            api_output = api_output[0]
 
-            # This await is now inside the task, allowing other tasks to run while this waits
-            api_output = await self.api.process_single_request(request)
-            content = api_output.response.get_raw_content()
-            parsed = json_repair.loads(content)
-            name = parsed["name"]
-            explanation = parsed["explanation"]
-            topic_names[index] = (name, explanation)
+            topic_names[index] = (api_output.name, api_output.explanation)
 
         async with asyncio.TaskGroup() as tg:
             for i, (words, docs) in enumerate(zip(top_words, top_docs_per_topic)):
@@ -328,7 +389,3 @@ Dokumenty:
                 topics=topics,
                 topic_documents=topic_doc_dist.tolist(),
             )
-
-
-
-
