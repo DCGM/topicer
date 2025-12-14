@@ -24,7 +24,7 @@ class CzechTimeTextDetector(TimeTextDetector, ConfigurableMixin):
     """
     Detector for Czech time expressions.
     """
-    DATE_PATTERN = r"\b(?:\d{1,2}\.\s*(?:leden|únor|březen|duben|květen|červen|červenec|srpen|září|říjen|listopad|prosinec)|(?:leden|únor|březen|duben|květen|červen|červenec|srpen|září|říjen|listopad|prosinec)\s*\d{1,2}\.)|(\d{1,2}\.\s?\d{1,2}\.\s?\d{3,4})\b"
+    DATE_PATTERN = r"\b(?:\d{1,2}\.\s*(?:leden|únor|březen|duben|květen|červen|červenec|srpen|září|říjen|listopad|prosinec)|(?:leden|únor|březen|duben|květen|červen|červenec|srpen|září|říjen|listopad|prosinec)\s*\d{1,2}\.|(?:\d{1,2}\.\s?\d{1,2}\.\s?\d{3,4}))\b"
     CENTURY_PATTERN = r"\b(?:\d{1,2}\.\s*století|století\s*\d{1,2}\.)\b"
     ERA_PATTERN = r"\b(?:př\. n\. l\.|n\. l\.|př\. Kr\.|BC|AD)"
     YEAR_PATTERN = r"\b(?:1\d{3}|20\d{2})\b"
