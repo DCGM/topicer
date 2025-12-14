@@ -91,7 +91,7 @@ class FastTopicDiscovery(BaseTopicer, ConfigurableMixin, CreatableMixin):
         user_default=100,
     )
     topic_time_doc_rep_size: int = ConfigurableValue(
-        desc="Number of documents with time phrases to represent each topic when generating topic descriptions. These documents will be randomly selected.",
+        desc="Number of documents with time phrases to represent each topic when generating topic descriptions. If more documents with time phrases are found, this number will be randomly sampled from them.",
         user_default=3,
     )
     generate_topic_name_model: str = ConfigurableValue(
