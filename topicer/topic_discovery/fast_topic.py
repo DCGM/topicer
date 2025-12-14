@@ -99,7 +99,7 @@ class FastTopicDiscovery(BaseTopicer, ConfigurableMixin, CreatableMixin):
         user_default="gpt-5-mini",
     )
     generate_description_model: str = ConfigurableValue(
-        desc="Model to use for generating topic names.",
+        desc="Model to use for generating topic descriptions.",
         user_default="gpt-5-mini",
     )
     generate_topic_name_system_prompt: Template = ConfigurableValue(
