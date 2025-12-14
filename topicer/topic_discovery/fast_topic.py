@@ -399,7 +399,6 @@ Popis tématu:"""),
             explanation of the topic name
         """
 
-        topic_names = [None] * len(top_words)  # Pre-allocate list to maintain order
 
         text_chunks = []
         for words, docs in zip(top_words, top_docs_per_topic):
