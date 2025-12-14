@@ -1,5 +1,4 @@
 
-from unittest.mock import MagicMock, patch
 import pytest
 from topicer.topic_discovery.time_text_detector import CzechTimeTextDetector
 
