@@ -18,13 +18,13 @@ class FailedToLoadModelError(Exception):
 
 
 class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
-    model: str = ConfigurableValue(desc="")
-    threshold: float = ConfigurableValue(desc="", user_default=0.5)
-    device: str = ConfigurableValue(desc="", user_default="cuda")
-    max_length: int = ConfigurableValue(desc="", user_default=512)
-    gap_tolerance: int = ConfigurableValue(desc="", user_default=0)
-    normalize_score: bool = ConfigurableValue(desc="", user_default=True)
-    soft_max_score: bool = ConfigurableValue(desc="", user_default=False)
+    model: str = ConfigurableValue(desc="Either a HuggingFace model name or a local path to the model directory.", user_default="UWB-AIR/Czert-B-base-cased")
+    threshold: float = ConfigurableValue(desc="Threshold for topic tagging", user_default=0.5)
+    device: str = ConfigurableValue(desc="Device to run the model on, either 'cuda' or 'cpu'.", user_default="cuda")
+    max_length: int = ConfigurableValue(desc="Maximum sequence length for tokenization.", user_default=512)
+    gap_tolerance: int = ConfigurableValue(desc="Tolerance for gaps of tokens between two spans of the same tag.", user_default=0)
+    normalize_score: bool = ConfigurableValue(desc="Whether to normalize the scores. This is dependent on the specific model implementation.", user_default=True)
+    soft_max_score: bool = ConfigurableValue(desc="Whether to use soft maximum when selecting score for each token.", user_default=False)
     loaded_from_huggingface: bool = False
 
     def __post_init__(self):
