@@ -117,7 +117,7 @@ def test_truncate_texts():
     ]
 
     max_length = 20
-    FastTopicDiscovery.truncate_texts(texts, max_length)
+    texts = FastTopicDiscovery.truncate_texts(texts, max_length)
 
     assert texts[0].text == "Short text."
     assert texts[1].text == "This is a bit longer"
