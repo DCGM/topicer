@@ -9,8 +9,8 @@ from topicer.schemas import DiscoveredTopicsSparse, TagSpanProposal, TextChunk, 
 
 class GlinerTopicer(BaseTopicer, ConfigurableMixin):
     model: str = ConfigurableValue(desc="Either a GLiNER model name from Hugging Face or a local path to a finetuned GLiNER.", user_default="urchade/gliner_multi-v2.1")
-    threshold: float = ConfigurableValue(desc="", user_default=0.5)
-    multi_label: bool = ConfigurableValue(desc="", user_default=False)
+    threshold: float = ConfigurableValue(desc="Threshold for tagging.", user_default=0.5)
+    multi_label: bool = ConfigurableValue(desc="Whether to allow multiple labels per span.", user_default=False)
 
     def __post_init__(self):
         self._model = GLiNER.from_pretrained(self.model)
