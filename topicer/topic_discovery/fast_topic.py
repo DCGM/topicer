@@ -149,7 +149,7 @@ Dokumenty:
 
     generate_description_system_prompt: Template = ConfigurableValue(
         desc="System prompt for generating topic descriptions based on time phrases.",
-        user_default=LiteralScalarString("""Vytvoř popis tématu na základě názvu tématu, dokumentů reprezentujících téma a dokumentů obsahujících časové výrazy.
+        user_default=LiteralScalarString("""Vytvoř popis tématu na základě názvu tématu, dokumentů reprezentujících téma a dokumentů obsahujících časové výrazy, pokud jsou k dispozici.
 Ve svém popisu se zaměř na časové události a jejich význam v kontextu tématu.
 
 Příklad:
@@ -185,7 +185,7 @@ Dokumenty reprezentující téma:
 {% for doc in topic_docs %}
 {{doc.text}}
 {% endfor %}
-Dokumenty s časovými výrazy:
+Dokumenty s časovými výrazy: {% if time_docs | length == 0 %}Žádné dokumenty s časovými výrazy nebyly nalezeny. {% endif %}
 {% for doc in time_docs %}
 {{doc.text}}
 {% endfor %}
@@ -193,7 +193,6 @@ Dokumenty s časovými výrazy:
 Popis tématu:"""),
         transform=TemplateTransformer()
     )
-
 
     sparse_threshold: float = ConfigurableValue(
         desc="Threshold for sparsity in topic-document distributions. Can be combined with sparse_top_k.",
@@ -220,6 +219,16 @@ Popis tématu:"""),
         user_default=CzechTimeTextDetector,
         voluntary=True
     )
+
+    random_seed: int | None = ConfigurableValue(
+        desc="Random seed used for selecting documents with time phrases when generating topic descriptions.",
+        user_default=42,
+        voluntary=True
+    )
+
+    def __post_init__(self):
+        if self.random_seed is not None:
+            self.random = random.Random(self.random_seed)
 
     def set_embedding_service(self, embedding_service: 'BaseEmbeddingService') -> None:
         self.embedding_service = embedding_service
@@ -473,7 +482,7 @@ Popis tématu:"""),
             if len(time_docs) <= self.topic_time_doc_rep_size:
                 time_docs_per_topic.append(time_docs)
             else:
-                time_docs_per_topic.append(random.sample(time_docs, self.topic_time_doc_rep_size))
+                time_docs_per_topic.append(self.random.sample(time_docs, self.topic_time_doc_rep_size))
 
         return time_docs_per_topic
 
