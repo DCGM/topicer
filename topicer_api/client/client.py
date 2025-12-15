@@ -167,7 +167,7 @@ def list_configs(args) -> None:
 
     print("Available Topicer configs:")
     for config in configs:
-        print(f"- {config}")
+        print(f"{config}")
 
 def main():
     args = parse_arguments()
