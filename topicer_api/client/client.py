@@ -35,7 +35,17 @@ def parse_arguments():
 
 
 def compose_url(args) -> str:
-    url = f"{args.url.rstrip('/')}/{args.method}?config_name={args.config_name}"
+    methods_mapping = {
+        "discover_topics_sparse": "topics/discover/texts/sparse",
+        "discover_topics_dense": "topics/discover/texts/dense",
+        "discover_topics_in_db_sparse": "topics/discover/db/sparse",
+        "discover_topics_in_db_dense": "topics/discover/db/dense",
+        "propose_tags": "tags/propose/texts",
+        "propose_tags_in_db": "tags/propose/db",
+    }
+
+
+    url = f"{args.url.rstrip('/')}/v1/{methods_mapping[args.method]}?config_name={args.config_name}"
 
     n_parameter_methods = ["discover_topics_sparse", "discover_topics_dense", "discover_topics_in_db_sparse",
                            "discover_topics_in_db_dense"]
@@ -122,7 +132,7 @@ def process_response(response: dict, args) -> None:
 
 
 def list_configs(args) -> None:
-    url = f"{args.url.rstrip('/')}/configs"
+    url = f"{args.url.rstrip('/')}/v1/configs"
 
     response = requests.get(url)
     response.raise_for_status()
