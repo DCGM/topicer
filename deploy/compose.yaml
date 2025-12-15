@@ -1,0 +1,32 @@
+services:
+  topicer:
+    build:
+      context: .
+      dockerfile: ./Dockerfile_deploy
+      target: server
+      args:
+        - NOW=${NOW}
+        - BRANCH_NAME=${BRANCH_NAME}
+    env_file:
+      - .deploy/.env
+    ports:
+       - "127.0.0.1:8080:8080"
+    volumes:
+    - './data:/app/data'
+    restart: always
+    command: "python run.py"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+
+  #embedding_service:
+
+networks:
+  default:
+    name: topicer_network
+
