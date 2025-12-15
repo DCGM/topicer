@@ -70,6 +70,14 @@ Each method instance exposes a **unified API** and is fully self-contained.
 
 ---
 
+## Models
+
+You can download the trained models here:
+
+| Model | Topicer  | URL  |
+|--------------|----------|-------------|
+| Base | CrossBertTopicer | [Download](https://nextcloud.fit.vutbr.cz/s/ppWnowwBE9D6f3H/download) |
+
 ## Supported Functionality
 
 ### Topic Discovery
