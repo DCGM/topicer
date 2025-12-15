@@ -6,6 +6,7 @@ from pathlib import Path
 
 from classconfig import Config
 
+from topicer.base import TopicerFactory, factory
 from topicer.schemas import TextChunk
 from topicer.topic_discovery import FastTopicDiscovery
 
@@ -54,12 +55,11 @@ async def call_run(args):
     :param args: User arguments.
     """
 
-    topic_discovery = FastTopicDiscovery.create(SCRIPT_DIR / "config.yaml")
+    topic_discovery = factory(SCRIPT_DIR / "config.yaml")
 
-    res = await topic_discovery.discover_topics(
+    res = await topic_discovery.discover_topics_dense(
         texts=CHUNK_LIST,
-        n=3,
-        sparse=False,
+        n=3
     )
     print("Discovered Topics:")
     for idx, topic in enumerate(res.topics):
@@ -72,10 +72,9 @@ async def call_run(args):
         print(f"Documents: {doc_topic}")
 
     print("\nRunning with sparse=True...\n")
-    res_sparse = await topic_discovery.discover_topics(
+    res_sparse = await topic_discovery.discover_topics_sparse(
         texts=CHUNK_LIST,
-        n=3,
-        sparse=True,
+        n=3
     )
     print("Discovered Topics (sparse):")
     for idx, topic in enumerate(res_sparse.topics):
@@ -95,7 +94,7 @@ async def call_create_config(args):
     :param args: User arguments.
     """
     # Placeholder for actual implementation
-    c = Config(FastTopicDiscovery)
+    c = Config(TopicerFactory)
     c.save(SCRIPT_DIR / "config.yaml")
     c.to_md(SCRIPT_DIR / "config.md")
 
