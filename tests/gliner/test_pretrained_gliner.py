@@ -11,7 +11,7 @@ from topicer.schemas import TextChunk, Tag, TextChunkWithTagSpanProposals
 
 @pytest.fixture
 def config_path():
-    return Path(__file__).parent / "config.yaml"
+    return Path(__file__).parent / "pretrained_config.yaml"
 
 
 @pytest.fixture
