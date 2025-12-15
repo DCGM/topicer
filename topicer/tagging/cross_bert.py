@@ -1,4 +1,3 @@
-from typing import Sequence
 from pathlib import Path
 import logging
 
@@ -7,7 +6,7 @@ from classconfig import ConfigurableMixin, ConfigurableValue
 from transformers import AutoTokenizer, AutoModel
 
 from topicer.base import BaseTopicer, MissingServiceError
-from topicer.schemas import DiscoveredTopicsSparse, TagSpanProposal, TextChunk, DiscoveredTopics, DBRequest, Tag, TextChunkWithTagSpanProposals, TagSpanProposal
+from topicer.schemas import TagSpanProposal, TextChunk, DBRequest, Tag, TextChunkWithTagSpanProposals
 
 
 logger = logging.getLogger(__name__)
@@ -59,18 +58,6 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
 
     def check_init(self):
         pass
-
-    async def discover_topics_sparse(self, texts: Sequence[TextChunk], n: int | None = None) -> DiscoveredTopicsSparse:
-        raise NotImplementedError("Sparse topic discovery is not supported by CrossBertTopicer.")
-
-    async def discover_topics_dense(self, texts: Sequence[TextChunk], n: int | None = None) -> DiscoveredTopics:
-        raise NotImplementedError("Dense topic discovery is not supported by CrossBertTopicer.")
-    
-    async def discover_topics_in_db_sparse(self, db_request: DBRequest, n: int | None = None) -> DiscoveredTopicsSparse:
-        raise NotImplementedError("Sparse topic discovery from DB is not supported by CrossBertTopicer.")
-
-    async def discover_topics_in_db_dense(self, db_request: DBRequest, n: int | None = None) -> DiscoveredTopics:
-        raise NotImplementedError("Dense topic discovery from DB is not supported by CrossBertTopicer.")
     
     def tokenize(self, chunk_text: str, tag_text: str) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, list[tuple[int, int]]]:
         tokenizer_output = self._tokenizer(
