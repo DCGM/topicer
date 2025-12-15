@@ -1,12 +1,12 @@
 import os
 from typing import Sequence
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.responses import RedirectResponse
 
-from topicer import factory
 from topicer.schemas import DBRequest, Tag, TextChunk
 
 from topicer_api.config import config as app_config
+from topicer_api.topicers import LoadedTopicers, get_loaded_topicers
 
 
 topicer_router = APIRouter()
@@ -25,12 +25,11 @@ async def get_configs():
 
 
 @topicer_router.post("/topics/discover/texts/sparse", summary="Discover topics in provided texts using sparse approach.")
-async def discover_topics_sparse(config_name: str, texts: Sequence[TextChunk], n: int | None = None):
-    config_path = str(os.path.join(app_config.TOPICER_API_CONFIGS_DIR, config_name + app_config.TOPICER_API_CONFIGS_EXTENSION))
-    if not os.path.exists(config_path):
+async def discover_topics_sparse(config_name: str, texts: Sequence[TextChunk], n: int | None = None, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)):
+    if config_name not in loaded_topicers:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
 
-    topicer_model = factory(config_path)
+    topicer_model = loaded_topicers[config_name]
 
     try:
         result = await topicer_model.discover_topics_sparse(texts=texts, n=n)
@@ -41,12 +40,11 @@ async def discover_topics_sparse(config_name: str, texts: Sequence[TextChunk], n
 
 
 @topicer_router.post("/topics/discover/texts/dense", summary="Discover topics in provided texts using dense approach.")
-async def discover_topics_dense(config_name: str, texts: Sequence[TextChunk], n: int | None = None):
-    config_path = str(os.path.join(app_config.TOPICER_API_CONFIGS_DIR, config_name + app_config.TOPICER_API_CONFIGS_EXTENSION))
-    if not os.path.exists(config_path):
+async def discover_topics_dense(config_name: str, texts: Sequence[TextChunk], n: int | None = None, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)):
+    if config_name not in loaded_topicers:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
 
-    topicer_model = factory(config_path)
+    topicer_model = loaded_topicers[config_name]
 
     try:
         result = await topicer_model.discover_topics_dense(texts=texts, n=n)
@@ -57,12 +55,11 @@ async def discover_topics_dense(config_name: str, texts: Sequence[TextChunk], n:
 
 
 @topicer_router.post("/topics/discover/db/sparse", summary="Discover topics in texts stored in database using sparse approach.")
-async def discover_topics_in_db_sparse(config_name: str, db_request: DBRequest, n: int | None = None):
-    config_path = str(os.path.join(app_config.TOPICER_API_CONFIGS_DIR, config_name + app_config.TOPICER_API_CONFIGS_EXTENSION))
-    if not os.path.exists(config_path):
+async def discover_topics_in_db_sparse(config_name: str, db_request: DBRequest, n: int | None = None, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)):
+    if config_name not in loaded_topicers:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
 
-    topicer_model = factory(config_path)
+    topicer_model = loaded_topicers[config_name]
 
     try:
         result = await topicer_model.discover_topics_in_db_sparse(db_request=db_request, n=n)
@@ -73,12 +70,11 @@ async def discover_topics_in_db_sparse(config_name: str, db_request: DBRequest, 
 
 
 @topicer_router.post("/topics/discover/db/dense", summary="Discover topics in texts stored in database using dense approach.")
-async def discover_topics_in_db_dense(config_name: str, db_request: DBRequest, n: int | None = None):
-    config_path = str(os.path.join(app_config.TOPICER_API_CONFIGS_DIR, config_name + app_config.TOPICER_API_CONFIGS_EXTENSION))
-    if not os.path.exists(config_path):
+async def discover_topics_in_db_dense(config_name: str, db_request: DBRequest, n: int | None = None, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)):
+    if config_name not in loaded_topicers:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
 
-    topicer_model = factory(config_path)
+    topicer_model = loaded_topicers[config_name]
 
     try:
         result = await topicer_model.discover_topics_in_db_dense(db_request=db_request, n=n)
@@ -89,12 +85,11 @@ async def discover_topics_in_db_dense(config_name: str, db_request: DBRequest, n
 
 
 @topicer_router.post("/tags/propose/texts", summary="Propose tags on provided text chunk.")
-async def propose_tags(config_name: str, text_chunk: TextChunk, tags: list[Tag]):
-    config_path = str(os.path.join(app_config.TOPICER_API_CONFIGS_DIR, config_name + app_config.TOPICER_API_CONFIGS_EXTENSION))
-    if not os.path.exists(config_path):
+async def propose_tags(config_name: str, text_chunk: TextChunk, tags: list[Tag], loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)):
+    if config_name not in loaded_topicers:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
 
-    topicer_model = factory(config_path)
+    topicer_model = loaded_topicers[config_name]
 
     try:
         result = await topicer_model.propose_tags(text_chunk=text_chunk, tags=tags)
@@ -105,12 +100,11 @@ async def propose_tags(config_name: str, text_chunk: TextChunk, tags: list[Tag])
 
 
 @topicer_router.post("/tags/propose/db", summary="Propose tags on texts stored in database.")
-async def propose_tags_in_db(config_name: str, tag: Tag, db_request: DBRequest):
-    config_path = str(os.path.join(app_config.TOPICER_API_CONFIGS_DIR, config_name + app_config.TOPICER_API_CONFIGS_EXTENSION))
-    if not os.path.exists(config_path):
+async def propose_tags_in_db(config_name: str, tag: Tag, db_request: DBRequest, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)):
+    if config_name not in loaded_topicers:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
 
-    topicer_model = factory(config_path)
+    topicer_model = loaded_topicers[config_name]
 
     try:
         result = await topicer_model.propose_tags_in_db(tag=tag, db_request=db_request)
