@@ -8,8 +8,8 @@ class Config:
         self.APP_PORT = int(os.getenv("APP_PORT", "8666"))
         self.APP_RELOAD = self._env_bool("APP_RELOAD", False)
 
-        self.TOPICER_CONFIGS_DIR = os.getenv("TOPICER_CONFIGS_DIR", "configs")
-        self.TOPICER_CONFIGS_EXTENSION = os.getenv("TOPICER_CONFIGS_EXTENSION", ".yaml")
+        self.TOPICER_API_CONFIGS_DIR = os.getenv("TOPICER_API_CONFIGS_DIR", "configs")
+        self.TOPICER_API_CONFIGS_EXTENSION = os.getenv("TOPICER_API_CONFIGS_EXTENSION", ".yaml")
 
     @staticmethod
     def _env_bool(key: str, default: bool = False) -> bool:
