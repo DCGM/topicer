@@ -109,7 +109,7 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
         start_char, end_char = None, None
         gap_count = 0
 
-        for pred, (offset_start, offset_end) in zip(predictions, offset_mapping):
+        for pred, (offset_start, offset_end) in zip(predictions, offset_mapping[-len(predictions)-1:-1], strict=True):
             if pred == 1:
                 if start_char is None:
                     start_char = offset_start
