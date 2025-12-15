@@ -1,192 +1,306 @@
-# topicer
+# Topicer
 
-Automatické navrhování tagů (štítků) k textům pomocí LLM. Model označí relevantní úseky textu a přiřadí je k předem definovaným tagům včetně přesných pozic (span_start, span_end).
+**Topicer** is a Python-based software framework for **topic discovery** and **semantic tag proposal** in large collections of textual documents.  
+It provides a unified Python API, pre-trained models, and REST services for easy deployment and integration.
 
-## Přehled
+Topicer is developed within the **semANT – Semantic Explorer of Textual Cultural Heritage** project and is designed with modularity, extensibility, and configurability in mind.
 
-- **Jádro (`topicer/tagging/`)**
-  - `tag_proposal_v1.py` – varianta s `Responses API`, která vrací quote + context a v Pythonu hledá přesné indexy.
-  - `tag_proposal_v2.py` – varianta s `Chat Completions API`; hledá opakované výskyty podle posunutého startu.
-  - `config.py` – načtení `config.yaml` do `AppConfig` (openai/weaviate).
-  - `utils.py` – pomocné funkce, např. robustní hledání spanů podle quote + context.
-  - `schemas.py` – interní schémata pro LLM návrhy a konfiguraci.
+---
 
-- **Veřejná schémata (`topicer/schemas.py`)**
-  - `Tag`, `TextChunk`, `TagSpanProposal`, `TextChunkWithTagSpanProposals`.
+## Key Features
 
-- **Databáze (`topicer/database/`)**
-  - Připravené schéma pro Weaviate (`db_schemas.py`, klient `weaviate_client.py`).
+- **Topic discovery**
+  - Unsupervised discovery of topics in text collections
+  - Automatic topic naming and description generation using LLMs
+  - Dense and sparse topic–document assignment
+- **Tag proposal**
+  - Zero-shot and few-shot tagging
+  - Span-level localization of tags in text
+  - Multiple tagging backends (LLM-based, neural models)
+- **Unified architecture**
+  - Single factory-based initialization from YAML config
+  - Shared abstractions for LLMs, embeddings, and databases
+- **Deployment options**
+  - Python package API
+  - REST API server
+  - Docker-based deployment
+- **Multilingual focus**
+  - Optimized for highly inflective languages (e.g. Czech)
 
-- **Příklady a testy**
-  - `run.py` – demo s daty z `tests/test_data.py`.
-  - `examples/` – ukázky konfigurace a použití.
-  - `tests/propose_tags*` – vstupní/výstupní JSONy pro manuální porovnání.
+---
 
-## Struktura projektu
+## Installation
 
-```
-topicer/
-├── tagging/                          # Jádro pro návrh tagů
-│   ├── tag_proposal_v1.py           # Varianta s Responses API
-│   ├── tag_proposal_v2.py           # Varianta s Chat Completions API
-│   ├── config.py                    # Načtení konfigurace z YAML
-│   ├── tagging_schemas.py           # Interní Pydantic schémata
-│   └── utils.py                     # pomocné funkce
-├── database/                        # Databázová vrstva (Weaviate)
-│   ├── db_schemas.py                # DBRequest a další DB schémata
-│   └── weaviate_client.py           # Klient pro Weaviate
-├── schemas.py                       # Veřejná schémata (Tag, TextChunk, TagSpanProposal)
-
-config.yaml                           # Konfigurace (openai, weaviate)
-run.py                                # Vstupní skript – demo
-requirements.txt                      # Python závislosti
-pyproject.toml                        # Project metadata
-.env                                  # OpenAI API klíč (gitignore)
-
-tests/
-├── test_data.py                     # Vzorová testovací data
-├── propose_tags/                    # Testovací sada V1
-│   ├── script.py
-│   ├── inputs/                      # test1_cities.json, test2_*.json, …
-│   └── outputs/                     # expected_output JSONy
-└── propose_tags2/                   # Testovací sada V2
-    ├── script.py
-    ├── inputs/
-    └── outputs/
-
-examples/
-├── example.py                        # Příklad základního použití
-└── configs/
-    └── example_config.yaml
-
-ssh_tunnel_setup/                     # SSH tunelovací skripty
-├── config.ini                        # Konfigurace pro Python verzi
-├── config.sh                         # Konfigurace pro Bash verzi
-├── start_tunnel.py
-└── start_tunnel.sh
-
-docs/
-└── documentation.md                 # [Bude doplneno]
-```
-
-## Rychlý start
-
-### Instalace
-
-#### Windows – PowerShell
-
-```powershell
-# vytvoření virtual environment
-python -m venv venv
-
-# aktivace
-.\venv\Scripts\Activate.ps1
-
-# instalace závislostí
-pip install -r requirements.txt
-
-# nastavení OpenAI API klíče
-echo OPENAI_API_KEY=your-key-here > .env
-```
-
-#### Windows – Command Prompt (cmd)
-
-```cmd
-# vytvoření virtual environment
-python -m venv venv
-
-# aktivace
-venv\Scripts\activate.bat
-
-# instalace závislostí
-pip install -r requirements.txt
-
-# nastavení OpenAI API klíče
-echo OPENAI_API_KEY=your-key-here > .env
-```
-
-#### Windows – Git Bash
+The latest version can be installed directly from GitHub:
 
 ```bash
-# vytvoření virtual environment
-python -m venv venv
+pip install git+https://github.com/DCGM/topicer
+````
 
-# aktivace
-source venv/Scripts/activate
-
-# instalace závislostí
-pip install -r requirements.txt
-
-# nastavení OpenAI API klíče
-echo "OPENAI_API_KEY=your-key-here" > .env
-```
-
-#### Linux / macOS
+Install a specific version:
 
 ```bash
-# vytvoření virtual environment
-python3 -m venv venv
+pip install git+https://github.com/DCGM/topicer@TAG
+```
 
-# aktivace
+Available releases are listed at:
+[https://github.com/DCGM/topicer/tags](https://github.com/DCGM/topicer/tags)
+
+---
+
+## Usage Overview
+
+Topicer is optimized for ease of use through a **single factory function** that constructs a fully configured method instance from a YAML file.
+
+### Basic Example
+
+```python
+from topicer import factory
+
+method = factory("method_config.yaml")
+
+# Propose tags in a text chunk
+result = await method.propose_tags(text_chunk, tags)
+
+# Discover topics
+topics = await method.discover_topics_dense(text_chunks)
+```
+
+Each method instance exposes a **unified API** and is fully self-contained.
+
+---
+
+## Supported Functionality
+
+### Topic Discovery
+
+* Discovers topics in text collections
+* Generates:
+
+  * Topic names
+  * Topic descriptions
+  * Topic–text assignments
+* Supports:
+
+  * **Dense representation** (score for every topic–text pair)
+  * **Sparse representation** (only strongly associated pairs)
+
+Implemented using:
+
+* FASTopic
+* SentenceTransformers (Gemma2-based embeddings)
+* Lemmatization via Morphodita
+* LLM-based topic naming and description (e.g. `gpt-5-mini`)
+
+---
+
+### Tag Proposal
+
+Topicer supports multiple tag proposal methods:
+
+#### LLM-based Tagging (`LLMTopicer`)
+
+* Uses external LLMs (OpenAI, Ollama, etc.)
+* Identifies and localizes tag spans using a robust matching strategy
+* Suitable for zero-shot and few-shot tagging
+
+#### GLiNER-based Tagging (`GlinerTopicer`)
+
+* Uses pretrained multilingual GLiNER models
+* Token-span based predictions with configurable thresholds
+* Supports single-label and multi-label modes
+
+#### Cross-Encoder BERT Tagging (`CrossBertTopicer`)
+
+* Fine-tuned BERT cross-encoder models
+* Token-level scoring with span merging
+* Optimized for Czech-language tagging
+* Pretrained models distributed with the package
+
+---
+
+## API Reference
+
+All topicer methods implement a subset of the following async API:
+
+```python
+async def discover_topics_sparse(texts, n=None)
+async def discover_topics_dense(texts, n=None)
+
+async def discover_topics_in_db_sparse(db_request, n=None)
+async def discover_topics_in_db_dense(db_request, n=None)
+
+async def propose_tags(text_chunk, tags)
+async def propose_tags_in_db(tag, db_request)
+```
+
+If a method does not implement a requested function, a `NotImplemented` exception is raised.
+
+---
+
+## Configuration
+
+Topicer uses **YAML-based configuration** powered by `classconfig`.
+
+### Configuration Structure
+
+```yaml
+topicer:
+  cls: ClassNameImplementingATopicerMethod
+  config:
+    # method-specific parameters
+
+llm_service:
+  cls: ClassNameImplementingALLMService
+  config:
+    # LLM parameters
+
+embedding_service:
+  cls: ClassNameImplementingAnEmbeddingService
+  config:
+    # embedding parameters
+
+db_connection:
+  cls: ClassNameImplementingADatabaseService
+  config:
+    # database parameters
+```
+
+The configuration is parsed and validated automatically by the factory.
+
+---
+
+## REST API
+
+Topicer includes a REST API built with **FastAPI**.
+
+### Available Endpoints
+
+* `/v1/configs`
+* `/v1/topics/discover/texts/sparse`
+* `/v1/topics/discover/texts/dense`
+* `/v1/topics/discover/db/sparse`
+* `/v1/topics/discover/db/dense`
+* `/v1/tags/propose/texts`
+* `/v1/tags/propose/db`
+
+Swagger documentation is available at:
+
+```
+http://localhost:8000/docs
+```
+
+---
+
+## Running the API Server
+
+### Local Execution
+
+```bash
+python -m venv venv
 source venv/bin/activate
-
-# instalace závislostí
-pip install -r requirements.txt
-
-# nastavení OpenAI API klíče
-echo "OPENAI_API_KEY=your-key-here" > .env
-```
-
-### Spuštění
-
-#### Windows – PowerShell / cmd
-
-```powershell
+pip install -r topicer_api/requirements.txt
+cd topicer_api
 python run.py
 ```
 
-#### Linux / macOS
+Environment variables:
+
+* `APP_HOST` (default: `127.0.0.1`)
+* `APP_PORT` (default: `8000`)
+* `TOPICER_API_CONFIGS_DIR`
+* `TOPICER_API_CONFIGS_EXTENSION`
+
+---
+
+### Docker Deployment
 
 ```bash
-python3 run.py
+cd deploy
+./update.sh build
+./update.sh up
 ```
 
-Skript načte vzorový text a tagy z `tests/test_data.py`, zavolá variantu TagProposal uvedenou v `run.py` a vytiskne návrhy včetně spanů.
+The API will be available at:
 
-## Volba varianty TagProposal
-
-- **V2** – používá `chat.completions` a pokrývá vícenásobné výskyty stejného slova. Vrací výsledky rychleji.
-- **V1** – používá `responses.parse` a přesnější dohledání spanů podle `quote + context_before`.
-
-Do budoucna se počítá s volbou varianty přímo v konfiguraci. Do té doby lze přepnout ručně v `run.py` změnou importu:
-
-```python
-from topicer.tagging.tag_proposal_v1 import TagProposalV1 as TagProposal
-# from topicer.tagging.tag_proposal_v2 import TagProposalV2 as TagProposal
+```
+http://localhost:8080
 ```
 
-Obě varianty vrací `TextChunkWithTagSpanProposals` a očekávají `AppConfig` z `config.yaml` + instanci `AsyncOpenAI`.
+GPU acceleration requires **NVIDIA Container Toolkit**.
+For CPU-only deployment, comment out the GPU section in `compose.yaml`.
 
-## Konfigurace (`config.yaml`)
+---
 
-- `openai.model` – výchozí `gpt-5.1`.
-- `openai.reasoning` – `none|low|medium|high` (předává se do V1; V2 běží s temperature 0).
-- `openai.span_granularity` – `word|phrase|collocation|sentence|paragraph` (hint pro V1 při volbě délky citace).
-- `weaviate.host|rest_port|grpc_port` – připraveno pro napojení na Weaviate.
+## Repository Structure
 
-## SSH tunel
+```
+deploy/              Docker deployment
+docs/                Method documentation
+examples/            Usage examples
+tests/               Unit tests
+embedding_service/   Embedding REST API
+topicer_api/         REST API server
+topicer/
+  ├─ database/       Database abstractions
+  ├─ embedding/      Embedding services
+  ├─ llm/            LLM service integrations
+  ├─ tagging/        Tag proposal methods
+  ├─ topic_discovery/Topic discovery methods
+  ├─ utils/
+  ├─ base.py         Public API & factory
+  ├─ schemas.py      Pydantic schemas
+  └─ __init__.py
+```
 
-Konfigurace a start skriptů v `ssh_tunnel_setup/` (`config.ini`, `config.sh`, `start_tunnel.py`, `start_tunnel.sh`). Tunel přesměruje např. porty 9000 → 8080 a 50055 → 50051 dle konfigurace.
+---
 
-## Jak to funguje
+## Extending Topicer
 
-1. Vstup: `TextChunk` + seznam `Tag`.
-2. LLM vrátí návrhy (quote + metadata).
-3. Post-processing v Pythonu dopočítá `span_start`/`span_end`.
-4. Výstup: `TextChunkWithTagSpanProposals` připravený pro další zpracování nebo uložení.
+Topicer is designed to be easily extensible:
 
-## Poznámky k vývoji
+* Add new topicers in `tagging/` or `topic_discovery/`
+* Implement new shared services in:
 
-- Potřebný `.env` s `OPENAI_API_KEY` v kořeni projektu.
-- Kód je formátovaný `autopep8`.
-- Závislosti: `openai`, `pydantic`, `python-dotenv`, `PyYAML`, `weaviate-client`.
+  * `llm/`
+  * `embedding/`
+  * `database/`
+* All new classes **must be imported in `topicer/__init__.py`**
+
+For API-level changes, please open a GitHub issue first.
+
+---
+
+## Requirements
+
+* Python **3.12** recommended
+* Optional GPU for local inference
+* OpenAI API key or local Ollama server for LLM-based methods
+* Docker & Docker Compose for containerized deployment
+
+---
+
+## License
+
+**BSD 3-Clause License**
+
+---
+
+## Acknowledgements
+
+This software was developed with financial support from the **Ministry of Culture of the Czech Republic** under the **NAKI III** program
+(Project ID: **DH23P03OVV060**).
+
+**Authors**:
+Martin Dočekal, Martin Kostelník, Marin Kišš, Richard Juřica, Michal Hradiš
+Brno University of Technology (VUT Brno)
+
+---
+
+```
+
+If you want, I can next:
+- tailor the README **exactly to GitHub best practices** (badges, citations, model table),
+- shorten it to a **minimal README**, or
+- split parts into `/docs` and link them cleanly.
+```
