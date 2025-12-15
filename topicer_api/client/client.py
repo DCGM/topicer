@@ -44,7 +44,6 @@ def compose_url(args) -> str:
         "propose_tags_in_db": "tags/propose/db",
     }
 
-
     url = f"{args.url.rstrip('/')}/v1/{methods_mapping[args.method]}?config_name={args.config_name}"
 
     n_parameter_methods = ["discover_topics_sparse", "discover_topics_dense", "discover_topics_in_db_sparse",
