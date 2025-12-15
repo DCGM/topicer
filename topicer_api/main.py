@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.loaded_topicers = load_topicers()
-    logger.info("Topicer API started and topicer configurations loaded.")
+    logger.info("TopicerAPI started and topicer configurations loaded.")
     yield
-    logging.info("Shutting down Topicer API...")
+    logging.info("Shutting down TopicerAPI...")
 
 
 app = FastAPI(title="TopicerAPI", lifespan=lifespan)

@@ -11,6 +11,25 @@ class Config:
         self.TOPICER_API_CONFIGS_DIR = os.getenv("TOPICER_API_CONFIGS_DIR", "./configs")
         self.TOPICER_API_CONFIGS_EXTENSION = os.getenv("TOPICER_API_CONFIGS_EXTENSION", ".yaml")
 
+        self.LOGGING_CONFIG = {
+            "version": 1,
+            "formatters": {
+                "default": {
+                    "format": "%(levelname)s|%(asctime)s|%(filename)s:%(name)s: %(message)s",
+                },
+            },
+            "handlers": {
+                "console": {
+                    "class": "logging.StreamHandler",
+                    "formatter": "default",
+                },
+            },
+            "root": {
+                "level": "INFO",
+                "handlers": ["console"],
+            },
+        }
+
     @staticmethod
     def _env_bool(key: str, default: bool = False) -> bool:
         val = os.getenv(key)

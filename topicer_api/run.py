@@ -1,9 +1,10 @@
 import uvicorn
-import logging
+import logging.config
 
 from topicer_api.config import config
 
 
+logging.config.dictConfig(config.LOGGING_CONFIG)
 logger = logging.getLogger(__name__)
 
 
