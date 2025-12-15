@@ -149,7 +149,9 @@ def process_response(response: dict, args) -> None:
                     print(f"Tag: {tag_span_proposal.tag.name}")
                     print(f"Span: ({tag_span_proposal.span_start}, {tag_span_proposal.span_end})")
                     print(f"Proposed text: '{result.text[tag_span_proposal.span_start:tag_span_proposal.span_end]}'")
-                    print(f"Confidence: {tag_span_proposal.confidence:.4f}")
+
+                    if tag_span_proposal.confidence is not None:
+                        print(f"Confidence: {tag_span_proposal.confidence:.4f}")
 
                     if i < len(results) - 1 or j < len(result.tag_span_proposals) - 1:
                         print("-----")
