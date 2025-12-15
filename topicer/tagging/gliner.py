@@ -1,10 +1,8 @@
-from typing import Sequence
-
 from classconfig import ConfigurableMixin, ConfigurableValue
 from gliner import GLiNER
 
 from topicer.base import BaseTopicer, MissingServiceError
-from topicer.schemas import DiscoveredTopicsSparse, TagSpanProposal, TextChunk, DiscoveredTopics, DBRequest, Tag, TextChunkWithTagSpanProposals
+from topicer.schemas import TagSpanProposal, TextChunk, DBRequest, Tag, TextChunkWithTagSpanProposals
 
 
 class GlinerTopicer(BaseTopicer, ConfigurableMixin):
@@ -17,20 +15,6 @@ class GlinerTopicer(BaseTopicer, ConfigurableMixin):
 
     def check_init(self):
         pass
-        # if self.db_connection is None:
-        #     raise MissingServiceError("DB connection has to be set for GlinerTopicer.")
-
-    async def discover_topics_sparse(self, texts: Sequence[TextChunk], n: int | None = None) -> DiscoveredTopicsSparse:
-        raise NotImplementedError("Sparse topic discovery is not supported by GlinerTopicer.")
-
-    async def discover_topics_dense(self, texts: Sequence[TextChunk], n: int | None = None) -> DiscoveredTopics:
-        raise NotImplementedError("Dense topic discovery is not supported by GlinerTopicer.")
-    
-    async def discover_topics_in_db_sparse(self, db_request: DBRequest, n: int | None = None) -> DiscoveredTopicsSparse:
-        raise NotImplementedError("Sparse topic discovery from DB is not supported by this Topicer.")
-
-    async def discover_topics_in_db_dense(self, db_request: DBRequest, n: int | None = None) -> DiscoveredTopics:
-        raise NotImplementedError("Dense topic discovery from DB is not supported by this Topicer.")
 
     async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
         """
