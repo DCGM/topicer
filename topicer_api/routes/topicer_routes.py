@@ -27,6 +27,9 @@ async def get_configs():
 @topicer_router.post("/discover_topics_sparse")
 async def discover_topics_sparse(config_name: str, texts: Sequence[TextChunk], n: int | None = None):
     config_path = str(os.path.join(app_config.TOPICER_CONFIGS_DIR, config_name + app_config.TOPICER_CONFIGS_EXTENSION))
+    if not os.path.exists(config_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
+
     topicer_model = factory(config_path)
 
     try:
@@ -40,6 +43,9 @@ async def discover_topics_sparse(config_name: str, texts: Sequence[TextChunk], n
 @topicer_router.post("/discover_topics_dense")
 async def discover_topics_dense(config_name: str, texts: Sequence[TextChunk], n: int | None = None):
     config_path = str(os.path.join(app_config.TOPICER_CONFIGS_DIR, config_name + app_config.TOPICER_CONFIGS_EXTENSION))
+    if not os.path.exists(config_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
+
     topicer_model = factory(config_path)
 
     try:
@@ -53,6 +59,9 @@ async def discover_topics_dense(config_name: str, texts: Sequence[TextChunk], n:
 @topicer_router.post("/discover_topics_in_db_sparse")
 async def discover_topics_in_db_sparse(config_name: str, db_request: DBRequest, n: int | None = None):
     config_path = str(os.path.join(app_config.TOPICER_CONFIGS_DIR, config_name + app_config.TOPICER_CONFIGS_EXTENSION))
+    if not os.path.exists(config_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
+
     topicer_model = factory(config_path)
 
     try:
@@ -66,6 +75,9 @@ async def discover_topics_in_db_sparse(config_name: str, db_request: DBRequest, 
 @topicer_router.post("/discover_topics_in_db_dense")
 async def discover_topics_in_db_dense(config_name: str, db_request: DBRequest, n: int | None = None):
     config_path = str(os.path.join(app_config.TOPICER_CONFIGS_DIR, config_name + app_config.TOPICER_CONFIGS_EXTENSION))
+    if not os.path.exists(config_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
+
     topicer_model = factory(config_path)
 
     try:
@@ -79,6 +91,9 @@ async def discover_topics_in_db_dense(config_name: str, db_request: DBRequest, n
 @topicer_router.post("/propose_tags")
 async def propose_tags(config_name: str, text_chunk: TextChunk, tags: list[Tag]):
     config_path = str(os.path.join(app_config.TOPICER_CONFIGS_DIR, config_name + app_config.TOPICER_CONFIGS_EXTENSION))
+    if not os.path.exists(config_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
+
     topicer_model = factory(config_path)
 
     try:
@@ -92,6 +107,9 @@ async def propose_tags(config_name: str, text_chunk: TextChunk, tags: list[Tag])
 @topicer_router.post("/propose_tags_in_db")
 async def propose_tags_in_db(config_name: str, tag: Tag, db_request: DBRequest):
     config_path = str(os.path.join(app_config.TOPICER_CONFIGS_DIR, config_name + app_config.TOPICER_CONFIGS_EXTENSION))
+    if not os.path.exists(config_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
+
     topicer_model = factory(config_path)
 
     try:
