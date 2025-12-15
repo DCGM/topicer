@@ -17,5 +17,5 @@ async def lifespan(app: FastAPI):
     logging.info("Shutting down Topicer API...")
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(title="TopicerAPI", lifespan=lifespan)
 app.include_router(topicer_router, prefix="/v1")
