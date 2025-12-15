@@ -111,20 +111,48 @@ def process_response(response: dict, args) -> None:
         with open(args.output, "w", encoding="utf-8") as f:
             json.dump(response, f, indent=2, ensure_ascii=False)
     else:
-        if args.method == "propose_tags":
+        if args.method in ["discover_topics_sparse", "discover_topics_dense", "discover_topics_in_db_sparse", "discover_topics_in_db_dense"]:
+            from topicer.schemas import DiscoveredTopics, DiscoveredTopicsSparse
+
+            if args.method in ["discover_topics_sparse", "discover_topics_in_db_sparse"]:
+                result = DiscoveredTopicsSparse(**response)
+                print("Discovered Topics (Sparse):")
+            else:
+                result = DiscoveredTopics(**response)
+                print("Discovered Topics (Dense):")
+
+            print("-----")
+            for i, topic in enumerate(result.topics):
+                print(f"Topic: {topic.name}")
+
+                if topic.name_explanation:
+                    print(f"Explanation: {topic.name_explanation}")
+
+                if topic.description:
+                    print(f"Description: {topic.description}")
+
+                if i < len(result.topics) - 1:
+                    print("-----")
+
+        elif args.method in ["propose_tags", "propose_tags_in_db"]:
             from topicer.schemas import TextChunkWithTagSpanProposals
 
-            result = TextChunkWithTagSpanProposals(**response)
-            print("Text:", result.text)
-            print("-----")
-            for i, tag_span_proposal in enumerate(result.tag_span_proposals):
-                print(f"Tag: {tag_span_proposal.tag.name}")
-                print(f"Span: ({tag_span_proposal.span_start}, {tag_span_proposal.span_end})")
-                print(f"Proposed text: '{result.text[tag_span_proposal.span_start:tag_span_proposal.span_end]}'")
-                print(f"Confidence: {tag_span_proposal.confidence:.4f}")
+            if args.method == "propose_tags":
+                results = [TextChunkWithTagSpanProposals(**response)]
+            else:
+                results = [TextChunkWithTagSpanProposals(**item) for item in response]
 
-                if i < len(result.tag_span_proposals) - 1:
-                    print("-----")
+            for i, result in enumerate(results):
+                print("Text:", result.text)
+                print("-----")
+                for j, tag_span_proposal in enumerate(result.tag_span_proposals):
+                    print(f"Tag: {tag_span_proposal.tag.name}")
+                    print(f"Span: ({tag_span_proposal.span_start}, {tag_span_proposal.span_end})")
+                    print(f"Proposed text: '{result.text[tag_span_proposal.span_start:tag_span_proposal.span_end]}'")
+                    print(f"Confidence: {tag_span_proposal.confidence:.4f}")
+
+                    if i < len(results) - 1 or j < len(result.tag_span_proposals) - 1:
+                        print("-----")
 
         else:
             print(json.dumps(response, indent=2, ensure_ascii=False))
