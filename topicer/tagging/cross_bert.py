@@ -27,18 +27,18 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
     soft_max_score: bool = ConfigurableValue(desc="Whether to use soft maximum when selecting score for each token.", user_default=False)
     loaded_from_huggingface: bool = False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.load_model()
         self._model.to(self.device)
         self._model.eval()
 
-    def load_model_from_hf(self):
+    def load_model_from_hf(self) -> None:
         logger.debug(f"Loading CrossBertTopicer model from HuggingFace: {self.model} ...")
         self._model = AutoModel.from_pretrained(self.model)
         self._tokenizer = AutoTokenizer.from_pretrained(self.model)
         self.loaded_from_huggingface = True
 
-    def load_local_model(self):
+    def load_local_model(self) -> None:
         logger.debug(f"Loading CrossBertTopicer model from local path: {self.model} ...")
         model_path = Path(self.model) / f"model_{self.device}.pt"
         self._model = torch.jit.load(str(model_path), map_location=self.device)
@@ -72,7 +72,7 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
     async def discover_topics_in_db_dense(self, db_request: DBRequest, n: int | None = None) -> DiscoveredTopics:
         raise NotImplementedError("Dense topic discovery from DB is not supported by CrossBertTopicer.")
     
-    def tokenize(self, chunk_text: str, tag_text: str) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def tokenize(self, chunk_text: str, tag_text: str) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, list[tuple[int, int]]]:
         tokenizer_output = self._tokenizer(
             tag_text,
             chunk_text,
@@ -94,7 +94,7 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
             model_outputs=model_outputs,
             token_type_ids=token_type_ids,
         )
-        max_similarities, _ = torch.max(similarity_matrix, dim=0) if not self.soft_max_score else torch.logsumexp(similarity_matrix, dim=0)
+        max_similarities = torch.max(similarity_matrix, dim=0)[0] if not self.soft_max_score else torch.logsumexp(similarity_matrix, dim=0)
         max_similarities = torch.sigmoid(max_similarities)
         return max_similarities
 
@@ -105,7 +105,10 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
         input_ids, attention_mask, token_type_ids, offset_mapping = self.tokenize(chunk_text, tag_text)
         model_outputs = self._model(input_ids=input_ids, attention_mask=attention_mask)
         if self.loaded_from_huggingface:
-            model_outputs = model_outputs.last_hidden_state
+            try:
+                model_outputs = model_outputs.last_hidden_state
+            except AttributeError:
+                model_outputs = model_outputs
         tag_probabilities = self.calculate_probabilities(model_outputs, token_type_ids)
         predictions = (tag_probabilities >= self.threshold).long().cpu().tolist()
 
@@ -127,7 +130,6 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
                     gap_count = 0
                 else:
                     if gap_count > 0:
-                        # Extend the end to include the gap
                         end_char = offset_end
                         gap_count = 0
                     else:
@@ -136,12 +138,11 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
                 if start_char is not None:
                     gap_count += 1
                     if gap_count > gap_tolerance:
-                        # Close the span
                         char_spans.append(TagSpanProposal(
                             tag=tag,
                             span_start=start_char,
                             span_end=end_char,
-                            confidence=1.0,  # Placeholder confidence
+                            confidence=None,
                             reason=None
                         ))
                         start_char, end_char = None, None
@@ -152,7 +153,7 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
                 tag=tag,
                 span_start=start_char,
                 span_end=end_char,
-                confidence=1.0,  # Placeholder confidence
+                confidence=None,
                 reason=None
             ))
 
@@ -181,7 +182,7 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
         self,
         model_outputs: torch.Tensor,
         token_type_ids: torch.Tensor,
-    ):
+    ) -> torch.Tensor:
         topic_mask = (token_type_ids == 0)
         text_mask = (token_type_ids == 1)
 
