@@ -5,7 +5,6 @@ from fastapi.responses import RedirectResponse
 
 from topicer.schemas import DBRequest, Tag, TextChunk
 
-from topicer_api.config import config as app_config
 from topicer_api.topicers import LoadedTopicers, get_loaded_topicers
 
 
@@ -18,9 +17,8 @@ async def root():
 
 
 @topicer_router.get("/configs", summary="List available Topicer configurations.")
-async def get_configs():
-    configs = [os.path.splitext(file)[0] for file in os.listdir(app_config.TOPICER_API_CONFIGS_DIR)
-               if file.endswith(app_config.TOPICER_API_CONFIGS_EXTENSION)]
+async def get_configs(loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)):
+    configs = list(loaded_topicers.keys())
     return configs
 
 
