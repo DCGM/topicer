@@ -305,10 +305,3 @@ Brno University of Technology (VUT Brno)
 
 ---
 
-```
-
-If you want, I can next:
-- tailor the README **exactly to GitHub best practices** (badges, citations, model table),
-- shorten it to a **minimal README**, or
-- split parts into `/docs` and link them cleanly.
-```
