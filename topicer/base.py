@@ -60,23 +60,25 @@ class BaseTopicer(ABC, ConfigurableMixin):
         ...
     
     @abstractmethod
-    async def discover_topics_in_db_sparse(self, db_request: DBRequest, n: int | None = None) -> DiscoveredTopicsSparse:
+    async def discover_topics_in_db_sparse(self, db_request: DBRequest, n: int | None = None, db_embeddings: bool | None = None) -> DiscoveredTopicsSparse:
         """
         Discover topics based on a database request and return a sparse representation.
 
         :param db_request: Database request to fetch texts for topic discovery.
         :param n: Optional number of topics to propose, if None uses the default value.
+        :param db_embeddings: Obtain text representations from database, if None uses the default.
         :return: DiscoveredTopicsSparse
         """
         ...
 
     @abstractmethod
-    async def discover_topics_in_db_dense(self, db_request: DBRequest, n: int | None = None) -> DiscoveredTopics:
+    async def discover_topics_in_db_dense(self, db_request: DBRequest, n: int | None = None, db_embeddings: bool | None = None) -> DiscoveredTopics:
         """
         Discover topics based on a database request and return a dense representation.
 
         :param db_request: Database request to fetch texts for topic discovery.
         :param n: Optional number of topics to propose, if None uses the default value.
+        :param db_embeddings: Obtain text representations from database, if None uses the default.
         :return: DiscoveredTopics
         """
         ...
