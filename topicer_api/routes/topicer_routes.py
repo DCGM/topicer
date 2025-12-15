@@ -24,7 +24,7 @@ async def get_configs():
     return configs
 
 
-@topicer_router.post("/discover_topics_sparse")
+@topicer_router.post("/topics/discover/texts/sparse")
 async def discover_topics_sparse(config_name: str, texts: Sequence[TextChunk], n: int | None = None):
     config_path = str(os.path.join(app_config.TOPICER_CONFIGS_DIR, config_name + app_config.TOPICER_CONFIGS_EXTENSION))
     if not os.path.exists(config_path):
@@ -40,7 +40,7 @@ async def discover_topics_sparse(config_name: str, texts: Sequence[TextChunk], n
     return result
 
 
-@topicer_router.post("/discover_topics_dense")
+@topicer_router.post("/topics/discover/texts/dense")
 async def discover_topics_dense(config_name: str, texts: Sequence[TextChunk], n: int | None = None):
     config_path = str(os.path.join(app_config.TOPICER_CONFIGS_DIR, config_name + app_config.TOPICER_CONFIGS_EXTENSION))
     if not os.path.exists(config_path):
@@ -56,7 +56,7 @@ async def discover_topics_dense(config_name: str, texts: Sequence[TextChunk], n:
     return result
 
 
-@topicer_router.post("/discover_topics_in_db_sparse")
+@topicer_router.post("/topics/discover/db/sparse")
 async def discover_topics_in_db_sparse(config_name: str, db_request: DBRequest, n: int | None = None):
     config_path = str(os.path.join(app_config.TOPICER_CONFIGS_DIR, config_name + app_config.TOPICER_CONFIGS_EXTENSION))
     if not os.path.exists(config_path):
@@ -72,7 +72,7 @@ async def discover_topics_in_db_sparse(config_name: str, db_request: DBRequest, 
     return result
 
 
-@topicer_router.post("/discover_topics_in_db_dense")
+@topicer_router.post("/topics/discover/db/dense")
 async def discover_topics_in_db_dense(config_name: str, db_request: DBRequest, n: int | None = None):
     config_path = str(os.path.join(app_config.TOPICER_CONFIGS_DIR, config_name + app_config.TOPICER_CONFIGS_EXTENSION))
     if not os.path.exists(config_path):
@@ -88,7 +88,7 @@ async def discover_topics_in_db_dense(config_name: str, db_request: DBRequest, n
     return result
 
 
-@topicer_router.post("/propose_tags")
+@topicer_router.post("/tags/propose/texts")
 async def propose_tags(config_name: str, text_chunk: TextChunk, tags: list[Tag]):
     config_path = str(os.path.join(app_config.TOPICER_CONFIGS_DIR, config_name + app_config.TOPICER_CONFIGS_EXTENSION))
     if not os.path.exists(config_path):
@@ -104,7 +104,7 @@ async def propose_tags(config_name: str, text_chunk: TextChunk, tags: list[Tag])
     return result
 
 
-@topicer_router.post("/propose_tags_in_db")
+@topicer_router.post("/tags/propose/db")
 async def propose_tags_in_db(config_name: str, tag: Tag, db_request: DBRequest):
     config_path = str(os.path.join(app_config.TOPICER_CONFIGS_DIR, config_name + app_config.TOPICER_CONFIGS_EXTENSION))
     if not os.path.exists(config_path):
