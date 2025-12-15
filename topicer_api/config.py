@@ -18,11 +18,4 @@ class Config:
             return default
         return val.strip().lower() in TRUE_VALUES
 
-    @staticmethod
-    def _env_tuple(key: str, default: tuple[str, ...]) -> tuple[str, ...]:
-        val = os.getenv(key)
-        if val is None:
-            return default
-        return tuple([item.strip() for item in val.split(",")])
-
 config = Config()
