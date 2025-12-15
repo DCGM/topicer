@@ -58,22 +58,24 @@ class BaseTopicer(ABC, ConfigurableMixin):
         """
         raise NotImplementedError("Dense topic discovery is not supported by this topicer.")
     
-    async def discover_topics_in_db_sparse(self, db_request: DBRequest, n: int | None = None) -> DiscoveredTopicsSparse:
+    async def discover_topics_in_db_sparse(self, db_request: DBRequest, n: int | None = None, db_embeddings: bool | None = None) -> DiscoveredTopicsSparse:
         """
         Discover topics based on a database request and return a sparse representation.
 
         :param db_request: Database request to fetch texts for topic discovery.
         :param n: Optional number of topics to propose, if None uses the default value.
+        :param db_embeddings: Obtain text representations from database, if None uses the default.
         :return: DiscoveredTopicsSparse
         """
         raise NotImplementedError("Sparse topic discovery in DB is not supported by this topicer.")
 
-    async def discover_topics_in_db_dense(self, db_request: DBRequest, n: int | None = None) -> DiscoveredTopics:
+    async def discover_topics_in_db_dense(self, db_request: DBRequest, n: int | None = None, db_embeddings: bool | None = None) -> DiscoveredTopics:
         """
         Discover topics based on a database request and return a dense representation.
 
         :param db_request: Database request to fetch texts for topic discovery.
         :param n: Optional number of topics to propose, if None uses the default value.
+        :param db_embeddings: Obtain text representations from database, if None uses the default.
         :return: DiscoveredTopics
         """
         raise NotImplementedError("Dense topic discovery in DB is not supported by this topicer.")
@@ -117,7 +119,7 @@ class BaseDBConnection(ABC, ConfigurableMixin):
     def get_text_chunks(self, db_request: DBRequest) -> list[TextChunk]:
         """
         Fetch text chunks from the database based on the provided DBRequest.
-        
+
         :param db_request: Database request object containing parameters for fetching text chunks
         :type db_request: DBRequest
         :return: Description
@@ -129,7 +131,7 @@ class BaseDBConnection(ABC, ConfigurableMixin):
     def find_similar_text_chunks(self, text: str, embedding: np.ndarray, db_request: DBRequest | None = None, k: int | None = None) -> list[TextChunk]:
         """
         Find similar text chunks in the database based on the provided text and embedding using hybrid search. configurable from YAML config file.
-        
+
         :param text: Text to find similar chunks for
         :type text: str
         :param embedding: Embedding vector to use for similarity search
@@ -147,7 +149,7 @@ class BaseDBConnection(ABC, ConfigurableMixin):
     def get_embeddings(self, text_chunks: list[TextChunk]) -> np.ndarray:
         """
         Retrieve embeddings for the given text chunks from the database.
-        
+
         :param text_chunks: List of text chunks to retrieve embeddings for
         :type text_chunks: list[TextChunk]
         :return: Array of embeddings corresponding to the input text chunks
