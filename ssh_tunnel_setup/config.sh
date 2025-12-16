@@ -1,10 +1,7 @@
 # --- SSH TUNNEL CONFIG ---
-set -a
-source ../.env
-set +a
 
 # Username on the remote server
-SSH_USER=${SSH_USER:-"xjuric31"}
+SSH_USER="xjuric31"
 
 # Address of the remote server
 SSH_SERVER="semant.cz"
@@ -18,8 +15,3 @@ TUNNEL_1_TARGET_PORT="8080"
 TUNNEL_2_LOCAL="50055"
 TUNNEL_2_TARGET_HOST="localhost"
 TUNNEL_2_TARGET_PORT="50051"
-
-# Third tunnel: LOCAL_PORT:TARGET_HOST:TARGET_PORT
-TUNNEL_3_LOCAL="9001"
-TUNNEL_3_TARGET_HOST="localhost"
-TUNNEL_3_TARGET_PORT="8001"
