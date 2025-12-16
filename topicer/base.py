@@ -1,7 +1,7 @@
-import os
 from abc import ABC, abstractmethod
-from typing import Sequence
-from pydantic import BaseModel
+from typing import Sequence, Type
+
+import numpy as np
 from classconfig import (
     CreatableMixin,
     ConfigurableMixin,
@@ -9,9 +9,10 @@ from classconfig import (
     Config,
 )
 from dotenv import load_dotenv
-import numpy as np
+from pydantic import BaseModel
 
-from topicer.schemas import DBRequest, DiscoveredTopics,DiscoveredTopicsSparse, Tag, TextChunk, TextChunkWithTagSpanProposals
+from topicer.schemas import DBRequest, DiscoveredTopics, DiscoveredTopicsSparse, Tag, TextChunk, \
+    TextChunkWithTagSpanProposals
 
 
 class MissingServiceError(Exception):
@@ -36,7 +37,6 @@ class BaseTopicer(ABC, ConfigurableMixin):
         """Check if all required services are set. Raise MissingServiceError if not."""
         ...
 
-    @abstractmethod
     async def discover_topics_sparse(self, texts: Sequence[TextChunk], n: int | None = None) -> DiscoveredTopicsSparse:
         """
         Discover topics for a collection of texts and return a sparse representation.
@@ -45,9 +45,9 @@ class BaseTopicer(ABC, ConfigurableMixin):
         :param n: Optional number of topics to propose, if None uses the default value.
         :return: DiscoveredTopicsSparse
         """
-        ...
+        raise NotImplementedError("Sparse topic discovery is not supported by this topicer.")
 
-    @abstractmethod
+
     async def discover_topics_dense(self, texts: Sequence[TextChunk], n: int | None = None) -> DiscoveredTopics:
         """
         Discover topics for a collection of texts and return a dense representation.
@@ -56,9 +56,8 @@ class BaseTopicer(ABC, ConfigurableMixin):
         :param n: Optional number of topics to propose, if None uses the default value.
         :return: DiscoveredTopics
         """
-        ...
+        raise NotImplementedError("Dense topic discovery is not supported by this topicer.")
     
-    @abstractmethod
     async def discover_topics_in_db_sparse(self, db_request: DBRequest, n: int | None = None) -> DiscoveredTopicsSparse:
         """
         Discover topics based on a database request and return a sparse representation.
@@ -67,9 +66,8 @@ class BaseTopicer(ABC, ConfigurableMixin):
         :param n: Optional number of topics to propose, if None uses the default value.
         :return: DiscoveredTopicsSparse
         """
-        ...
+        raise NotImplementedError("Sparse topic discovery in DB is not supported by this topicer.")
 
-    @abstractmethod
     async def discover_topics_in_db_dense(self, db_request: DBRequest, n: int | None = None) -> DiscoveredTopics:
         """
         Discover topics based on a database request and return a dense representation.
@@ -78,9 +76,8 @@ class BaseTopicer(ABC, ConfigurableMixin):
         :param n: Optional number of topics to propose, if None uses the default value.
         :return: DiscoveredTopics
         """
-        ...
+        raise NotImplementedError("Dense topic discovery in DB is not supported by this topicer.")
 
-    @abstractmethod
     async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
         """
         Propose tags for a given text chunk and return the proposals with span indices.
@@ -89,9 +86,8 @@ class BaseTopicer(ABC, ConfigurableMixin):
         :param tags: A list of tags to find in text_chunk.
         :return: TextChunkWithTagSpanProposals
         """
-        ...
+        raise NotImplementedError("Tag proposal is not supported by this topicer.")
 
-    @abstractmethod
     async def propose_tags_in_db(self, tag: Tag,  db_request: DBRequest) -> list[TextChunkWithTagSpanProposals]:
         """
         Propose tags for texts found in a database based on a database request and return the proposals with span indices.
@@ -100,17 +96,17 @@ class BaseTopicer(ABC, ConfigurableMixin):
         :param db_request: Database request to fetch texts for tag proposal.
         :return: list[TextChunkWithTagSpanProposals]
         """
-        ...
+        raise NotImplementedError("Tag proposal in DB is not supported by this topicer.")
 
 
 class BaseLLMService(ABC, ConfigurableMixin):
     """Base interface for LLM services."""
     @abstractmethod
-    def process_text_chunks(self, text_chunks: list[str], instruction: str, model: str | None = None) -> list[str]:
+    async def process_text_chunks(self, text_chunks: list[str], instruction: str, model: str | None = None) -> list[str]:
         ...
 
     @abstractmethod
-    def process_text_chunks_structured(self, text_chunks: list[str], instruction: str, output_type: BaseModel, model: str | None = None) -> list[BaseModel]:
+    async def process_text_chunks_structured(self, text_chunks: list[str], instruction: str, output_type: Type[BaseModel], model: str | None = None) -> list[BaseModel]:
         ...
 
 
