@@ -1,1 +1,0 @@
-# TODO: Here will be the Weaviate client implementation
