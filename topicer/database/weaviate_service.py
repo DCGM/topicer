@@ -5,9 +5,10 @@ from weaviate import WeaviateClient
 from weaviate.classes.query import Filter
 from topicer.schemas import TextChunk, DBRequest
 from uuid import UUID
+import numpy as np
 
 
-class WeaviateClient(BaseDBConnection, ConfigurableMixin):
+class WeaviateService(BaseDBConnection, ConfigurableMixin):
     # Connection config
     host: str = ConfigurableValue(desc="Weaviate host", user_default="localhost")
     rest_port: int = ConfigurableValue(desc="Weaviate REST port", user_default=8080)
@@ -40,6 +41,11 @@ class WeaviateClient(BaseDBConnection, ConfigurableMixin):
         user_default=100,
     )
 
+    hybrid_search_alpha: float = ConfigurableValue(
+        desc="Alpha parameter for hybrid search (0.0 = pure keyword search, 1.0 = pure vector search)",
+        user_default=0.5,
+    )
+
     def __post_init__(self):
         self._client: WeaviateClient = weaviate.connect_to_custom(
             http_host=self.host,
@@ -54,7 +60,7 @@ class WeaviateClient(BaseDBConnection, ConfigurableMixin):
         Returns list of TextChunk where id is a UUID parsed from Weaviate object's id and text from chunk_text_prop.
         """
 
-        chunks_coll = self.chunks_collection
+        chunks_coll_name = self.chunks_collection
         props = [self.chunk_text_prop]
 
         where_filter = None
@@ -63,20 +69,48 @@ class WeaviateClient(BaseDBConnection, ConfigurableMixin):
                 str(db_request.collection_id)
             )
 
-        response = self._client.collections.use(chunks_coll).query.fetch_objects(
+        chunks_collection = self._client.collections.use(chunks_coll_name)
+        response = chunks_collection.query.fetch_objects(
             filters=where_filter,
             return_properties=props,
             limit=self.chunks_limit,
         )
 
-        items = []
+        chunks: list[TextChunk] = []
         for obj in response.objects:
             text = obj.properties.get(self.chunk_text_prop, "")
             object_id = UUID(obj.id)
 
-            items.append(TextChunk(id=object_id, text=text))
+            chunks.append(TextChunk(id=object_id, text=text))
 
-        return items
+        return chunks
 
-    def find_similar_text_chunks(self, text_chunks, embedding, db_request = None, k = None):
-        ...
+    def find_similar_text_chunks(
+        self,
+        text: str,
+        embedding: np.ndarray,
+        db_request: DBRequest | None = None,
+        k: int | None = None,
+    ) -> list[TextChunk]:
+        chunks_coll_name = self.chunks_collection
+        where_filter = None
+        if (
+            db_request
+            and db_request.collection_id is not None
+            and self.chunk_user_collection_id_prop
+        ):
+            where_filter = Filter.by_property(self.chunk_user_collection_id_prop).equal(
+                str(db_request.collection_id)
+            )
+
+        top_k = k if k is not None else self.chunks_limit
+        vec = embedding.tolist()
+
+        chunks_collection = self._client.collections.use(chunks_coll_name)
+        response = chunks_collection.query.hybrid(
+            vector=vec,
+            alpha=self.hybrid_search_alpha,
+            filters=where_filter,
+            return_properties=[self.chunk_text_prop],
+            limit=top_k,
+        )
