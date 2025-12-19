@@ -118,7 +118,7 @@ class BaseDBConnection(ABC, ConfigurableMixin):
         ...
     
     @abstractmethod
-    def find_similar_text_chunks(self, text_chunks: str, embedding: np.ndarray, db_request: DBRequest | None = None, k: int | None = None) -> list[TextChunk]:
+    def find_similar_text_chunks(self, text: str, embedding: np.ndarray, db_request: DBRequest | None = None, k: int | None = None) -> list[TextChunk]:
         ...
 
     @abstractmethod
