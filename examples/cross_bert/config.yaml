@@ -1,0 +1,10 @@
+topicer:
+  cls: CrossBertTopicer
+  config:
+    model: path/to/trained/model
+    threshold: 0.5
+    device: cuda
+    max_length: 350
+    gap_tolerance: 5
+    normalize_score: true
+    soft_max_score: true
