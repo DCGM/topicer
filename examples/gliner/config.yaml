@@ -1,0 +1,6 @@
+topicer:
+  cls: GlinerTopicer
+  config:
+    model: urchade/gliner_multi-v2.1
+    threshold: 0.2
+    multi_label: false
