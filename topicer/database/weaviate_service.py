@@ -6,27 +6,28 @@ from weaviate.classes.query import Filter
 from topicer.schemas import TextChunk, DBRequest
 from uuid import UUID
 import numpy as np
+from itertools import islice
+from collections.abc import Iterable
 
 
 class WeaviateService(BaseDBConnection, ConfigurableMixin):
     # Connection config
-    host: str = ConfigurableValue(desc="Weaviate host", user_default="localhost")
-    rest_port: int = ConfigurableValue(desc="Weaviate REST port", user_default=8080)
-    grpc_port: int = ConfigurableValue(desc="Weaviate gRPC port", user_default=50051)
+    host: str = ConfigurableValue(
+        desc="Weaviate host", user_default="localhost")
+    rest_port: int = ConfigurableValue(
+        desc="Weaviate REST port", user_default=8080)
+    grpc_port: int = ConfigurableValue(
+        desc="Weaviate gRPC port", user_default=50051)
 
     # Data model config
     chunks_collection: str = ConfigurableValue(
         desc="Collection/class name storing text chunks",
         user_default="Chunks_test",
     )
-    user_collection: str = ConfigurableValue(
-        desc="Collection/class name for user collections",
-        user_default="Usercollection_test",
-    )
     # Property on chunk objects that links/filters by user collection id
-    chunk_user_collection_id_prop: str = ConfigurableValue(
-        desc="Property on Chunks referencing/identifying the user collection ID (UUID as string)",
-        user_default="user_collection_id",
+    chunk_user_collection_ref: str = ConfigurableValue(
+        desc="Property on Chunks referencing the user collection",
+        user_default="userCollection",
         voluntary=True,
     )
     # Property holding the text in chunk objects
@@ -38,7 +39,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
 
     chunks_limit: int = ConfigurableValue(
         desc="Max number of chunks to retrieve per request",
-        user_default=100,
+        user_default=100000,
     )
 
     hybrid_search_alpha: float = ConfigurableValue(
