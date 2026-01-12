@@ -157,6 +157,6 @@ def factory(cfg: str | dict | Config) -> BaseTopicer:
     topicer.set_llm_service(f.llm_service)
     topicer.set_db_connection(f.db_connection)
     topicer.set_embedding_service(f.embedding_service)
-    topicer.check_init()
+    # topicer.check_init()
 
     return topicer
