@@ -161,3 +161,6 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
             return_properties=[self.chunk_text_prop],
             limit=top_k,
         )
+
+    def get_embeddings(self, text_chunks: list[TextChunk]) -> np.ndarray:
+        pass
