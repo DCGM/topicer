@@ -51,7 +51,10 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         self._client: WeaviateClient = weaviate.connect_to_custom(
             http_host=self.host,
             http_port=self.rest_port,
+            http_secure=False,
+            grpc_host=self.host,
             grpc_port=self.grpc_port,
+            grpc_secure=False,
         )
 
     def get_text_chunks(self, db_request: DBRequest) -> list[TextChunk]:
