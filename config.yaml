@@ -2,7 +2,7 @@ topicer:
   cls: TagProposalV1
   config:
     span_granularity: "collocation"
-external_service:
+llm_service:
   cls: OpenAIService
   config:
     model: "gpt-5.1"
