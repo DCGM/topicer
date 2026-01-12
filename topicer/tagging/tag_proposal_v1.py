@@ -13,10 +13,10 @@ class TagProposalV1(BaseTopicer, ConfigurableMixin):
     
     @property
     def openai(self) -> OpenAIService:
-        return self.external_service  # nebo self.external_client, pokud nechceš .client
+        return self.llm_service
 
     async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
-
+        
         tags_json = json.dumps([tag.model_dump(mode="json")
                                for tag in tags], ensure_ascii=False)
 
@@ -47,7 +47,7 @@ class TagProposalV1(BaseTopicer, ConfigurableMixin):
         ### Available Tags:
         {tags_json}
         """
-
+        
         response = await self.openai.client.responses.parse(
             model=self.openai.model,
             instructions=instructions,
@@ -56,13 +56,13 @@ class TagProposalV1(BaseTopicer, ConfigurableMixin):
             reasoning={
                 "effort": self.openai.reasoning
             }
-        )
+        )        
 
         # it is already parsed as LLMTagProposalList
         llm_proposals = response.output_parsed.proposals
 
         final_proposals = []
-
+        
         # Post-processing in Python (Calculating indices)
         for prop in llm_proposals:
             # We have quote and context_before, need to find indices in text_chunk.text
