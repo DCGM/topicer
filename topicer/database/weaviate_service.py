@@ -94,28 +94,40 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         db_request: DBRequest | None = None,
         k: int | None = None,
     ) -> list[TextChunk]:
-        chunks_coll_name = self.chunks_collection
-        where_filter = None
-        if (
-            db_request
-            and db_request.collection_id is not None
-            and self.chunk_user_collection_id_prop
-        ):
-            where_filter = Filter.by_property(self.chunk_user_collection_id_prop).equal(
-                str(db_request.collection_id)
-            )
+        # Access the chunks collection
+        chunks_collection = self._client.collections.use(
+            self.chunks_collection)
 
+        results: list[TextChunk] = []
         top_k = k if k is not None else self.chunks_limit
+
+        chunk_filter = Filter.by_ref(
+            self.chunk_user_collection_ref).by_id().equal(db_request.collection_id) if (
+                db_request is not None and db_request.collection_id is not None
+        ) else None
+
         vec = embedding.tolist()
 
-        chunks_collection = self._client.collections.use(chunks_coll_name)
         response = chunks_collection.query.hybrid(
+            query=text,
             vector=vec,
             alpha=self.hybrid_search_alpha,
-            filters=where_filter,
+            filters=chunk_filter,
             return_properties=[self.chunk_text_prop],
             limit=top_k,
         )
+        
+        for obj in response.objects:
+            results.append(
+                TextChunk(
+                    id=obj.uuid,
+                    text=obj.properties.get(self.chunk_text_prop, ""),
+                )
+            )
+        
+        # Return the results
+        return results
+              
 
     def get_embeddings(self, text_chunks: list[TextChunk]) -> np.ndarray:
         pass
