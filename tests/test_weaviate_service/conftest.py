@@ -30,22 +30,20 @@ def mock_service(mocker):
 @pytest.fixture
 def integration_service():
     # Initialize WeaviateService (it will connect to localhost:8080 by default)
-    test_chunk_collection_name = "Test_Chunks_Integration"
-    test_user_collection_name = "Test_UserCollection"
-    service = WeaviateService(chunks_collection=test_chunk_collection_name)
+    service = WeaviateService()
     client = service._client
 
     # --- SETUP: Create schema ---
     # First, delete any old collection that might be left over from previous tests
-    client.collections.delete(test_chunk_collection_name)
-    client.collections.delete(test_user_collection_name)
+    client.collections.delete(service.chunks_collection)
+    client.collections.delete(service.chunk_user_collection_ref)
 
     # Create the collection we will reference (UserCollection)
-    client.collections.create(name=test_user_collection_name)
+    client.collections.create(name=service.chunk_user_collection_ref)
     
     # Create the main collection with texts and reference
     client.collections.create(
-        name=test_chunk_collection_name,
+        name=service.chunks_collection,
         properties=[
             wvcc.Property(name="text", data_type=wvcc.DataType.TEXT),
         ],
@@ -53,7 +51,7 @@ def integration_service():
         references=[
             wvcc.ReferenceProperty(
                 name=service.chunk_user_collection_ref,
-                target_collection=test_user_collection_name
+                target_collection=service.chunk_user_collection_ref
             )
         ]
     )
@@ -61,6 +59,6 @@ def integration_service():
     yield service  # Here the actual test runs
 
     # --- TEARDOWN: Clean up after the test ---
-    client.collections.delete(test_chunk_collection_name)
-    client.collections.delete(test_user_collection_name)
+    client.collections.delete(service.chunks_collection)
+    client.collections.delete(service.chunk_user_collection_ref)
     client.close()
