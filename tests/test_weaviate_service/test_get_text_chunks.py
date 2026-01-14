@@ -6,25 +6,6 @@ from topicer.schemas import TextChunk
 from uuid import uuid4
 import weaviate.classes.config as wvcc
 
-@pytest.fixture
-def mock_service(mocker):
-    """
-    This 
-
-    :param mocker: The mocker fixture for mocking dependencies
-    """
-
-    mock_connect = mocker.patch(
-        "topicer.database.weaviate_service.weaviate.connect_to_custom")
-
-    mock_client = MagicMock()
-    mock_connect.return_value = mock_client
-
-    service = WeaviateService()
-
-    return service, mock_client
-
-
 def test_get_text_chunks_success(mock_service):
     # Arrange
     service, mock_client = mock_service
@@ -137,46 +118,6 @@ def test_get_text_chunks_handles_error(mock_service):
     request = DBRequest(collection_id=uuid4())
     with pytest.raises(RuntimeError):
         service.get_text_chunks(request)
-        
-
-# 1. FIXTURE: Připraví čisté prostředí pro každý test
-@pytest.fixture
-def integration_service():
-    # Inicializace servisy (připojí se na localhost:8080 dle defaultu)
-    # Změníme název kolekce na unikátní testovací název
-    test_collection_name = "Test_Chunks_Integration"
-    service = WeaviateService(chunks_collection=test_collection_name)
-    client = service._client
-
-    # --- SETUP: Vytvoření schématu ---
-    # Nejdřív smažeme starou kolekci, kdyby tam zbyla z minula
-    client.collections.delete(test_collection_name)
-    client.collections.delete("Test_UserCollection")
-
-    # Vytvoříme kolekci, na kterou se budeme odkazovat (UserCollection)
-    client.collections.create(name="Test_UserCollection")
-    
-    # Vytvoříme hlavní kolekci s texty a referencí
-    client.collections.create(
-        name=test_collection_name,
-        properties=[
-            wvcc.Property(name="text", data_type=wvcc.DataType.TEXT),
-        ],
-        # Definujeme referenci, kterou tvůj kód v 'get_text_chunks' filtruje
-        references=[
-            wvcc.ReferenceProperty(
-                name=service.chunk_user_collection_ref,
-                target_collection="Test_UserCollection"
-            )
-        ]
-    )
-
-    yield service  # Tady se spustí samotný test
-
-    # --- TEARDOWN: Úklid po testu ---
-    client.collections.delete(test_collection_name)
-    client.collections.delete("Test_UserCollection")
-    client.close()
     
 @pytest.mark.integration
 def test_get_text_chunks_real_retrieval(integration_service):
