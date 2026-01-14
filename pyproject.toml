@@ -26,6 +26,11 @@ classifiers=[
 readme = "README.md"
 requires-python = ">=3.10"
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as integration tests",
+]
+
 [tool.setuptools]
 packages = ["topicer"]
 include-package-data = false
