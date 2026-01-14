@@ -2,7 +2,7 @@ from topicer.base import BaseDBConnection
 from classconfig import ConfigurableMixin, ConfigurableValue
 import weaviate
 from weaviate import WeaviateClient
-from weaviate.classes.query import Filter
+from weaviate.classes.query import Filter, Sort
 from topicer.schemas import TextChunk, DBRequest
 from uuid import UUID
 import numpy as np
@@ -62,75 +62,30 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         chunks_collection = self._client.collections.use(
             self.chunks_collection)
 
+        results: list[TextChunk] = []
+        MAX_TOTAL_LIMIT = max(100000, self.chunks_limit)
+
         # Definition of the filter using reference property
         chunk_filter = Filter.by_ref(self.chunk_user_collection_ref).by_id().equal(db_request.collection_id) if (
             db_request.collection_id is not None
         ) else None
 
-        MAX_TOTAL_LIMIT = max(100000, self.chunks_limit)
-        results: list[TextChunk] = []
-        cursor = None
-        batch_size = 1000  # Number of results to fetch per request
+        response = chunks_collection.query.fetch_objects(
+            filters=chunk_filter,
+            limit=MAX_TOTAL_LIMIT,
+            return_properties=[self.chunk_text_prop],
+        )
 
-        while len(results) < MAX_TOTAL_LIMIT:
-            response = chunks_collection.query.fetch_objects(
-                filters=chunk_filter,
-                limit=min(batch_size, MAX_TOTAL_LIMIT - len(results)),
-                after=cursor,
-                return_properties=[self.chunk_text_prop],
-            )
-
-            if not response.objects:
-                break  # No more results
-
-            for obj in response.objects:
-                results.append(
-                    TextChunk(
-                        id=obj.uuid,
-                        text=obj.properties.get(self.chunk_text_prop, ""),
-                    )
-                )
-
-            # Update cursor to the last fetched object's UUID
-            cursor = response.objects[-1].uuid
-
-        # Return all fetched results in a single list
-        return results
-
-    # TODO: Discuss whether this streaming approach is better than the above method
-    def get_text_chunks_stream(self, db_request: DBRequest) -> Iterable[TextChunk]:
-        chunks_collection = self._client.collections.use(
-            self.chunks_collection)
-
-        chunk_filter = Filter.by_ref(self.chunk_user_collection_ref).by_id().equal(db_request.collection_id) if (
-            db_request.collection_id is not None
-        ) else None
-        
-        MAX_TOTAL_LIMIT = max(100000, self.chunks_limit)
-        results_fetched = 0
-        cursor = None
-        batch_size = 1000  # Number of results to fetch per request
-        
-        while results_fetched < MAX_TOTAL_LIMIT:
-            response = chunks_collection.query.fetch_objects(
-                filters=chunk_filter,
-                limit=min(batch_size, MAX_TOTAL_LIMIT - results_fetched),
-                after=cursor,
-                return_properties=[self.chunk_text_prop],
-            )
-            
-            if not response.objects:
-                break  # No more results
-
-            for obj in response.objects:
-                yield TextChunk(
+        for obj in response.objects:
+            results.append(
+                TextChunk(
                     id=obj.uuid,
                     text=obj.properties.get(self.chunk_text_prop, ""),
                 )
-                results_fetched += 1
-            
-            # Update cursor to the last fetched object's UUID
-            cursor = response.objects[-1].uuid
+            )
+
+        # Return all fetched results in a single list
+        return results
 
     def find_similar_text_chunks(
         self,
