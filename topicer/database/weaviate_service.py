@@ -46,6 +46,11 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         desc="Alpha parameter for hybrid search (0.0 = pure keyword search, 1.0 = pure vector search)",
         user_default=0.5,
     )
+    
+    max_vector_distance: float = ConfigurableValue(
+        desc="Maximum vector distance for similarity searches",
+        user_default=0.5,
+    )
 
     def __post_init__(self):
         self._client: WeaviateClient = weaviate.connect_to_custom(
@@ -115,6 +120,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
             filters=chunk_filter,
             return_properties=[self.chunk_text_prop],
             limit=top_k,
+            max_vector_distance=self.max_vector_distance,
         )
         
         for obj in response.objects:
