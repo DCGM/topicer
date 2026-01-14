@@ -38,73 +38,55 @@ def test_get_text_chunks_success(mock_service):
     assert isinstance(vysledek[0], TextChunk)
     assert vysledek[0].text == "Ahoj světe"
     assert vysledek[0].id == fake_uuid
-    assert mock_collection.query.fetch_objects.call_count == 2
-
-
-def test_get_text_chunks_empty_result(mock_service):
-    # Arrange
-    service, mock_client = mock_service
-    mock_collection = MagicMock()
-    mock_client.collections.use.return_value = mock_collection
-
-    mock_empty_response = MagicMock()
-    mock_empty_response.objects = []
-
-    mock_collection.query.fetch_objects.side_effect = [mock_empty_response]
-
-    # Act
-    request = DBRequest(collection_id=uuid4())
-    vysledek = service.get_text_chunks(request)
-
-    # Assert
-    assert vysledek == []
     assert mock_collection.query.fetch_objects.call_count == 1
 
-
-def test_get_text_chunks_pagination_merges_results(mock_service):
-    # Arrange
+def test_get_text_chunks_handles_large_volume(mock_service):
+    # --- Arrange ---
     service, mock_client = mock_service
     mock_collection = MagicMock()
     mock_client.collections.use.return_value = mock_collection
 
-    # Batch 1
-    uuid1 = uuid4()
-    obj1 = MagicMock()
-    obj1.uuid = uuid1
-    obj1.properties = {"text": "První"}
+    # We generate a larger number of fake objects to simulate large data retrieval
+    num_objects = 5000
+    fake_objects = []
+    expected_ids = set()
+    
+    for i in range(num_objects):
+        u_id = uuid4()
+        mock_obj = MagicMock()
+        mock_obj.uuid = u_id
+        mock_obj.properties = {service.chunk_text_prop: f"Text kusu číslo {i}"}
+        fake_objects.append(mock_obj)
+        expected_ids.add(u_id)
 
-    uuid2 = uuid4()
-    obj2 = MagicMock()
-    obj2.uuid = uuid2
-    obj2.properties = {"text": "Druhý"}
+    # The response now contains all data in a single list
+    mock_response = MagicMock()
+    mock_response.objects = fake_objects
 
-    resp1 = MagicMock()
-    resp1.objects = [obj1, obj2]
+    # Mock fetch_objects to return all data in a single call
+    mock_collection.query.fetch_objects.return_value = mock_response
 
-    # Batch 2
-    uuid3 = uuid4()
-    obj3 = MagicMock()
-    obj3.uuid = uuid3
-    obj3.properties = {"text": "Třetí"}
-
-    resp2 = MagicMock()
-    resp2.objects = [obj3]
-
-    # End
-    resp_end = MagicMock()
-    resp_end.objects = []
-
-    mock_collection.query.fetch_objects.side_effect = [resp1, resp2, resp_end]
-
-    # Act
+    # --- Act ---
     request = DBRequest(collection_id=uuid4())
-    vysledek = service.get_text_chunks(request)
+    result = service.get_text_chunks(request)
 
-    # Assert
-    assert len(vysledek) == 3
-    assert [c.text for c in vysledek] == ["První", "Druhý", "Třetí"]
-    assert {c.id for c in vysledek} == {uuid1, uuid2, uuid3}
-    assert mock_collection.query.fetch_objects.call_count == 3
+    # --- Assert ---
+    # 1. Verify that all 5000 objects were returned
+    assert len(result) == num_objects
+    
+    # 2. Verify data integrity (spot check first and last)
+    assert result[0].text == "Text kusu číslo 0"
+    assert result[-1].text == f"Text kusu číslo {num_objects - 1}"
+    
+    # 3. Verify that all IDs match
+    assert {c.id for c in result} == expected_ids
+
+    # 4. KEY CHANGE: fetch_objects is called exactly ONCE
+    assert mock_collection.query.fetch_objects.call_count == 1
+    
+    # 5. Check that we sent a sufficiently high limit to the DB
+    args, kwargs = mock_collection.query.fetch_objects.call_args
+    assert kwargs['limit'] >= 100000
 
 def test_get_text_chunks_handles_error(mock_service):
     # Arrange
