@@ -17,7 +17,7 @@ class OpenAIService(BaseLLMService, ConfigurableMixin):
         self.client: AsyncOpenAI = AsyncOpenAI()
         
     async def process_text_chunks(self, text_chunks: list[str], instruction: str, model: str | None = None) -> list[str]:
-        pass
+        raise NotImplementedError("OpenAIService.process_text_chunks is not implemented yet.")
     
     async def process_text_chunks_structured(self, text_chunks: list[str], instruction: str, output_type: Type[BaseModel], model: str | None = None) -> list[BaseModel]:
-        pass
+        raise NotImplementedError("OpenAIService.process_text_chunks_structured is not implemented yet.")
