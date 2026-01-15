@@ -1,6 +1,5 @@
 import pytest
 from unittest.mock import MagicMock
-from topicer.database.weaviate_service import WeaviateService
 from topicer.schemas import DBRequest
 from topicer.schemas import TextChunk
 from uuid import uuid4
