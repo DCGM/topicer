@@ -78,6 +78,7 @@ def test_get_embeddings_success_unit(mock_service):
     
 # -------------------- INTEGRATION TESTS --------------------
 
+@pytest.mark.integration
 def test_get_embeddings_integration(integration_service):
     service = integration_service
     collection = service._client.collections.use(service.chunks_collection)
