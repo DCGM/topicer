@@ -6,12 +6,6 @@ import weaviate.classes.config as wvcc
 
 @pytest.fixture
 def mock_service(mocker):
-    """
-    This 
-
-    :param mocker: The mocker fixture for mocking dependencies
-    """
-
     # Mock the weaviate client connection
     mock_connect = mocker.patch(
         "topicer.database.weaviate_service.weaviate.connect_to_custom")

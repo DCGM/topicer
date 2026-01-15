@@ -2,12 +2,9 @@ from topicer.base import BaseDBConnection
 from classconfig import ConfigurableMixin, ConfigurableValue
 import weaviate
 from weaviate import WeaviateClient
-from weaviate.classes.query import Filter, MetadataQuery
+from weaviate.classes.query import Filter
 from topicer.schemas import TextChunk, DBRequest
-from uuid import UUID
 import numpy as np
-from itertools import islice
-from collections.abc import Iterable
 
 
 class WeaviateService(BaseDBConnection, ConfigurableMixin):
