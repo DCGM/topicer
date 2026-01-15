@@ -10,7 +10,7 @@ from uuid import uuid4
 def test_find_similar_text_chunks_unit(mock_service):
     service, mock_client = mock_service
 
-    # Definition of tue test data
+    # Definition of the test data
     test_uuid = uuid4()
     test_text = "Some similar text chunk"
     test_embedding = np.array([0.1, 0.2, 0.3])
