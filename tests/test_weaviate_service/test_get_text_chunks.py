@@ -3,7 +3,6 @@ from unittest.mock import MagicMock
 from topicer.schemas import DBRequest
 from topicer.schemas import TextChunk
 from uuid import uuid4
-import weaviate.classes.config as wvcc
 
 
 # -------------------- UNIT TESTS --------------------
