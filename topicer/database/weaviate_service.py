@@ -2,7 +2,7 @@ from topicer.base import BaseDBConnection
 from classconfig import ConfigurableMixin, ConfigurableValue
 import weaviate
 from weaviate import WeaviateClient
-from weaviate.classes.query import Filter, Sort
+from weaviate.classes.query import Filter, MetadataQuery
 from topicer.schemas import TextChunk, DBRequest
 from uuid import UUID
 import numpy as np
@@ -46,7 +46,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         desc="Alpha parameter for hybrid search (0.0 = pure keyword search, 1.0 = pure vector search)",
         user_default=0.5,
     )
-    
+
     max_vector_distance: float = ConfigurableValue(
         desc="Maximum vector distance for similarity searches",
         user_default=0.5,
@@ -122,7 +122,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
             limit=top_k,
             max_vector_distance=self.max_vector_distance,
         )
-        
+
         for obj in response.objects:
             results.append(
                 TextChunk(
@@ -130,10 +130,47 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
                     text=obj.properties.get(self.chunk_text_prop, ""),
                 )
             )
-        
+
         # Return the results
         return results
-              
 
     def get_embeddings(self, text_chunks: list[TextChunk]) -> np.ndarray:
-        pass
+        # If no text chunks, return empty array
+        if not text_chunks:
+            return np.array([])
+
+        # Access the chunks collection
+        chunks_collection = self._client.collections.use(
+            self.chunks_collection)
+
+        # We need to extract the UUIDs of the text chunks
+        uuids = [chunk.id for chunk in text_chunks]
+
+        response = chunks_collection.query.fetch_objects_by_ids(
+            ids=uuids,
+            include_vector=True,
+            return_properties=[],
+        )
+
+        vector_map = {
+            obj.uuid: obj.vector["default"]
+            for obj in response.objects
+            if obj.vector and "default" in obj.vector
+        }
+
+        embeddings = []
+        missing_ids = []
+
+        for chunk in text_chunks:
+            vector = vector_map.get(chunk.id)
+            if vector is not None:
+                embeddings.append(vector)
+            else:
+                missing_ids.append(str(chunk.id))
+
+        if missing_ids:
+            raise ValueError(
+                f"Embeddings not found for TextChunk IDs: {missing_ids}"
+            )
+
+        return np.array(embeddings)
