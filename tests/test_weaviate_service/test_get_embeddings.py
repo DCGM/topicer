@@ -17,7 +17,7 @@ def test_get_embeddings_value_error_if_missing_unit(mock_service):
 
     # Tested ID
     missing_id = uuid4()
-    chunks = [TextChunk(id=missing_id, text="Chybějící")]
+    chunks = [TextChunk(id=missing_id, text="Missing")]
 
     # Verify that the method raises a ValueError
     with pytest.raises(ValueError) as excinfo:
