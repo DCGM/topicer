@@ -150,3 +150,71 @@ def test_find_similar_text_chunks_no_match_integration(integration_service):
 
     # 3. Assertions
     assert len(results) == 0
+
+
+@pytest.mark.integration
+def test_find_similar_text_chunks_ranking_integration(integration_service):
+    service = integration_service
+    client = service._client
+    user_col_id = uuid4()
+
+    # Create a user collection object
+    user_col = client.collections.use(service.chunk_user_collection_ref)
+    user_col.data.insert(properties={}, uuid=user_col_id)
+    chunks_col = client.collections.use(service.chunks_collection)
+
+    # We define three texts with decreasing relevance to the query "python programming"
+    # A: Perfect match (both text and vector)
+    # B: Partial match
+    # C: Completely unrelated
+    texts = [
+        ("A", "Expert Python programming and software development."),  # Best
+        ("B", "General coding and technology tips."),                # Medium
+        # Least relevant
+        ("C", "How to bake a chocolate cake.")
+    ]
+
+    # For simplicity, we use dummy vectors where A is closest to "query_vector"
+    # Query vector will be [1.0, 0, 0 ...]
+    query_vector = [0.0] * 1536
+    query_vector[0] = 1.0
+
+    vectors = [
+        # A: Skoro stejný směr jako query
+        [0.9, 0.1, 0.0] + [0.0] * 1533,
+
+        # B: Větší úhel (více míří k indexu 1)
+        [0.5, 0.5, 0.0] + [0.0] * 1533,
+
+        # C: Úplně jiný směr (míří na index 2)
+        [0.0, 0.0, 1.0] + [0.0] * 1533
+    ]
+
+    for (label, txt), vec in zip(texts, vectors):
+        chunks_col.data.insert(
+            properties={service.chunk_text_prop: txt},
+            references={service.chunk_user_collection_ref: user_col_id},
+            vector=vec
+        )
+
+    # Action
+    db_request = DBRequest(collection_id=user_col_id)
+    results = service.find_similar_text_chunks(
+        text="python programming",
+        embedding=np.array(query_vector),
+        db_request=db_request,
+        k=10
+    )
+
+    # Assertions - Check order
+    assert len(results) >= 2
+
+    # The first result must be the most relevant (A)
+    assert "Python programming" in results[0].text
+
+    # The second result should be the one about coding (B)
+    assert "coding" in results[1].text
+
+    # If the cake (C) was returned, it must be after them
+    if len(results) > 2:
+        assert "cake" in results[2].text
