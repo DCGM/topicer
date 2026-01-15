@@ -45,8 +45,8 @@ def test_get_embeddings_success_unit(mock_service):
     vec2 = [0.4, 0.5, 0.6]
     
     chunks = [
-        TextChunk(id=id1, text="První"),
-        TextChunk(id=id2, text="Druhý")
+        TextChunk(id=id1, text="First"),
+        TextChunk(id=id2, text="Second")
     ]
 
     # Simulation of response from Weaviate
