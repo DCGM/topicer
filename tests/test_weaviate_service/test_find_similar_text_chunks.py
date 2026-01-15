@@ -180,13 +180,13 @@ def test_find_similar_text_chunks_ranking_integration(integration_service):
     query_vector[0] = 1.0
 
     vectors = [
-        # A: Skoro stejný směr jako query
+        # A: Almost the same direction as the query
         [0.9, 0.1, 0.0] + [0.0] * 1533,
 
-        # B: Větší úhel (více míří k indexu 1)
+        # B: Larger angle (points more towards index 1)
         [0.5, 0.5, 0.0] + [0.0] * 1533,
 
-        # C: Úplně jiný směr (míří na index 2)
+        # C: Completely different direction (points towards index 2)
         [0.0, 0.0, 1.0] + [0.0] * 1533
     ]
 
