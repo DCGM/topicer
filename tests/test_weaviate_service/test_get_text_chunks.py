@@ -32,13 +32,13 @@ def test_get_text_chunks_success_unit(mock_service):
 
     # Act
     request = DBRequest(collection_id=uuid4())
-    vysledek = service.get_text_chunks(request)
+    result = service.get_text_chunks(request)
 
     # Assert
-    assert len(vysledek) == 1
-    assert isinstance(vysledek[0], TextChunk)
-    assert vysledek[0].text == "Hello world"
-    assert vysledek[0].id == fake_uuid
+    assert len(result) == 1
+    assert isinstance(result[0], TextChunk)
+    assert result[0].text == "Hello world"
+    assert result[0].id == fake_uuid
     assert mock_collection.query.fetch_objects.call_count == 1
     
 @pytest.mark.unit
