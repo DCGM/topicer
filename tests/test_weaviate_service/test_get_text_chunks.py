@@ -67,7 +67,7 @@ def test_get_text_chunks_with_filter_unit(mock_service):
     
     # Verify that the filter was applied correctly
     args, kwargs = mock_collection.query.fetch_objects.call_args
-    assert kwargs['filters'] is not None  # Filtr by měl být nastavený
+    assert kwargs['filters'] is not None  # Filter should be set
 
 @pytest.mark.unit
 def test_get_text_chunks_large_volume_unit(mock_service):
@@ -101,20 +101,20 @@ def test_get_text_chunks_large_volume_unit(mock_service):
     result = service.get_text_chunks(request)
 
     # --- Assert ---
-    # 1. Verify that all 5000 objects were returned
+    # Verify that all 5000 objects were returned
     assert len(result) == num_objects
     
-    # 2. Verify data integrity (spot check first and last)
+    # Verify data integrity (spot check first and last)
     assert result[0].text == "Text chunk number 0"
     assert result[-1].text == f"Text chunk number {num_objects - 1}"
     
-    # 3. Verify that all IDs match
+    # Verify that all IDs match
     assert {c.id for c in result} == expected_ids
 
-    # 4. KEY CHANGE: fetch_objects is called exactly ONCE
+    # fetch_objects is called exactly ONCE
     assert mock_collection.query.fetch_objects.call_count == 1
     
-    # 5. Check that we sent a sufficiently high limit to the DB
+    # Verify that we sent a sufficiently high limit to the DB
     args, kwargs = mock_collection.query.fetch_objects.call_args
     assert kwargs['limit'] >= 100000
 
@@ -127,7 +127,7 @@ def test_get_text_chunks_handles_error_unit(mock_service):
 
     mock_collection.query.fetch_objects.side_effect = RuntimeError("DB error")
 
-    # Act / Assert
+    # Assert
     request = DBRequest(collection_id=uuid4())
     with pytest.raises(RuntimeError):
         service.get_text_chunks(request)
@@ -141,11 +141,11 @@ def test_get_text_chunks_success_integration(integration_service):
     user_coll = client.collections.use(service.chunk_user_collection_ref)
     coll = client.collections.use(service.chunks_collection)
 
-    # Vytvoříme objekty v UserCollection nejdřív
+    # We create objects in UserCollection first
     target_user_id = user_coll.data.insert(properties={})
     other_user_id = user_coll.data.insert(properties={})
 
-    # Vložíme 2 objekty, které odpovídají filtru
+    # We insert 2 objects that match the filter
     coll.data.insert(
         properties={service.chunk_text_prop: "This text we want"},
         references={service.chunk_user_collection_ref: target_user_id}
@@ -154,17 +154,17 @@ def test_get_text_chunks_success_integration(integration_service):
         properties={service.chunk_text_prop: "This one too"},
         references={service.chunk_user_collection_ref: target_user_id}
     )
-    # Vložíme 1 objekt, který filtr nesmí najít
+    # We insert 1 object that the filter should NOT find
     coll.data.insert(
         properties={service.chunk_text_prop: "This one should not be found"},
         references={service.chunk_user_collection_ref: other_user_id}
     )
 
-    # Voláme tvou metodu
+    # We call your method
     request = DBRequest(collection_id=target_user_id)
     results = service.get_text_chunks(request)
 
-    # Ověření
+    # Assertions
     assert len(results) == 2
     texts = [r.text for r in results]
     assert "This text we want" in texts
@@ -178,11 +178,13 @@ def test_get_text_chunks_large_volume_integration(integration_service):
     user_coll = client.collections.use(service.chunk_user_collection_ref)
     coll = client.collections.use(service.chunks_collection)
 
+    # Insert a user collection object to reference
     target_user_id = user_coll.data.insert(properties={})
 
     num_objects = 1500 
     expected_ids = set()
 
+    # Insert a large number of objects
     for i in range(num_objects):
         obj_id = coll.data.insert(
             properties={service.chunk_text_prop: f"Object number {i}"},
@@ -190,8 +192,10 @@ def test_get_text_chunks_large_volume_integration(integration_service):
         )
         expected_ids.add(obj_id)
 
+    # Action
     request = DBRequest(collection_id=target_user_id)
     results = service.get_text_chunks(request)
 
+    # Assertions
     assert len(results) == num_objects
     assert {c.id for c in results} == expected_ids

@@ -48,6 +48,7 @@ def test_find_similar_text_chunks_unit(mock_service):
     assert kwargs['limit'] == 5
     assert kwargs['alpha'] == service.hybrid_search_alpha
 
+
 @pytest.mark.unit
 def test_find_similar_text_chunks_no_results_unit(mock_service):
     service, mock_client = mock_service
@@ -70,6 +71,7 @@ def test_find_similar_text_chunks_no_results_unit(mock_service):
     assert len(results) == 0
 
 # -------------------- INTEGRATION TESTS --------------------
+
 
 @pytest.mark.integration
 def test_find_similar_text_chunks_integration(integration_service):
@@ -107,6 +109,7 @@ def test_find_similar_text_chunks_integration(integration_service):
     assert len(results) > 0
     assert "programming" in results[0].text
 
+
 @pytest.mark.integration
 def test_find_similar_text_chunks_no_match_integration(integration_service):
     service = integration_service
@@ -117,7 +120,7 @@ def test_find_similar_text_chunks_no_match_integration(integration_service):
 
     user_col = client.collections.use(service.chunk_user_collection_ref)
     user_col.data.insert(properties={}, uuid=user_col_id)
-    
+
     # Vector in DB (1.0 at start, rest 0s)
     vector_in_db = [0.0] * 1536
     vector_in_db[0] = 1.0
