@@ -5,50 +5,56 @@ from weaviate import WeaviateClient
 from weaviate.classes.query import Filter
 from topicer.schemas import TextChunk, DBRequest
 import numpy as np
-
-
+import logging
 class WeaviateService(BaseDBConnection, ConfigurableMixin):
     # Connection config
-    host: str = ConfigurableValue(
+    host = ConfigurableValue(
         desc="Weaviate host", user_default="localhost")
-    rest_port: int = ConfigurableValue(
+    rest_port = ConfigurableValue(
         desc="Weaviate REST port", user_default=8080)
-    grpc_port: int = ConfigurableValue(
+    grpc_port = ConfigurableValue(
         desc="Weaviate gRPC port", user_default=50051)
 
     # Data model config
-    chunks_collection: str = ConfigurableValue(
+    chunks_collection = ConfigurableValue(
         desc="Collection/class name storing text chunks",
         user_default="Chunks_test",
     )
     # Property on chunk objects that links/filters by user collection id
-    chunk_user_collection_ref: str = ConfigurableValue(
+    chunk_user_collection_ref = ConfigurableValue(
         desc="Property on Chunks referencing the user collection",
         user_default="userCollection",
         voluntary=True,
     )
     # Property holding the text in chunk objects
-    chunk_text_prop: str = ConfigurableValue(
+    chunk_text_prop = ConfigurableValue(
         desc="Property name of the text field within the chunks collection",
         user_default="text",
         voluntary=True,
     )
 
-    chunks_limit: int = ConfigurableValue(
+    # Max chunks to retrieve per request
+    chunks_limit = ConfigurableValue(
         desc="Max number of chunks to retrieve per request",
         user_default=100000,
+        voluntary=True,
     )
 
-    hybrid_search_alpha: float = ConfigurableValue(
+    # Hybrid search config
+    hybrid_search_alpha = ConfigurableValue(
         desc="Alpha parameter for hybrid search (0.0 = pure keyword search, 1.0 = pure vector search)",
         user_default=0.5,
+        voluntary=True,
     )
 
-    max_vector_distance: float = ConfigurableValue(
+    # Max vector distance for similarity searches
+    max_vector_distance = ConfigurableValue(
         desc="Maximum vector distance for similarity searches",
         user_default=0.5,
+        voluntary=True,
     )
 
+    # Post-init to set up the Weaviate client
     def __post_init__(self):
         self._client: WeaviateClient = weaviate.connect_to_custom(
             http_host=self.host,
@@ -58,7 +64,26 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
             grpc_port=self.grpc_port,
             grpc_secure=False,
         )
-
+        
+    def close(self):
+        client = getattr(self, '_client', None)
+        if client is not None:
+            try:
+                client.close()
+            except Exception:
+                logging.warning("Failed to close Weaviate client", exc_info=True)
+            finally:
+                self._client = None
+                
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+    
+    def __del__(self):
+        self.close()
+        
     def get_text_chunks(self, db_request: DBRequest) -> list[TextChunk]:
         # Access the chunks collection
         chunks_collection = self._client.collections.use(
