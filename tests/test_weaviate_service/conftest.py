@@ -52,7 +52,10 @@ def integration_service():
 
     yield service  # Here the actual test runs
 
-    # --- TEARDOWN: Clean up after the test ---
-    client.collections.delete(service.chunks_collection)
-    client.collections.delete(service.chunk_user_collection_ref)
-    client.close()
+    # --- TEARDOWN: Recreate connection if closed in test ---
+    if service._client is None:
+        service.__post_init__()
+    
+    service._client.collections.delete(service.chunks_collection)
+    service._client.collections.delete(service.chunk_user_collection_ref)
+    service.close()
