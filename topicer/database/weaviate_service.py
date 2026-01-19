@@ -6,7 +6,17 @@ from weaviate.classes.query import Filter
 from topicer.schemas import TextChunk, DBRequest
 import numpy as np
 import logging
+
+
 class WeaviateService(BaseDBConnection, ConfigurableMixin):
+    """
+    Service for interacting with a Weaviate database.
+
+    Example usage as a Context Manager (recommended):
+
+        with WeaviateService(host="localhost") as db:
+            chunks = db.get_text_chunks(request)
+    """
     # Connection config
     host = ConfigurableValue(
         desc="Weaviate host", user_default="localhost")
@@ -54,39 +64,56 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         voluntary=True,
     )
 
-    # Post-init to set up the Weaviate client
+    @property
+    def client(self) -> WeaviateClient:
+        """Safe accessor for the Weaviate client."""
+        if self._client is None:
+            raise RuntimeError(
+                "WeaviateService is not connected. Use 'with' block "
+                "or call connect() method before accessing data."
+            )
+        return self._client
+
     def __post_init__(self):
-        self._client: WeaviateClient = weaviate.connect_to_custom(
-            http_host=self.host,
-            http_port=self.rest_port,
-            http_secure=False,
-            grpc_host=self.host,
-            grpc_port=self.grpc_port,
-            grpc_secure=False,
-        )
-        
+        self._client: WeaviateClient | None = None
+        # self.connect() // TODO: Discuss if we want auto-connect on init, I prefer explicit connect or context manager usage.
+
+    def connect(self) -> None:
+        """Establishes connection if not already connected."""
+        if self._client is None:
+            self._client = weaviate.connect_to_custom(
+                http_host=self.host,
+                http_port=self.rest_port,
+                http_secure=False,
+                grpc_host=self.host,
+                grpc_port=self.grpc_port,
+                grpc_secure=False,
+            )
+
     def close(self):
         client = getattr(self, '_client', None)
         if client is not None:
             try:
                 client.close()
             except Exception:
-                logging.warning("Failed to close Weaviate client", exc_info=True)
+                logging.warning(
+                    "Failed to close Weaviate client", exc_info=True)
             finally:
                 self._client = None
-                
-    def __enter__(self):
+
+    def __enter__(self) -> "WeaviateService":
+        self.connect()
         return self
-    
-    def __exit__(self, exc_type, exc_value, traceback):
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
         self.close()
-    
-    def __del__(self):
+
+    def __del__(self) -> None:
         self.close()
-        
+
     def get_text_chunks(self, db_request: DBRequest) -> list[TextChunk]:
         # Access the chunks collection
-        chunks_collection = self._client.collections.use(
+        chunks_collection = self.client.collections.use(
             self.chunks_collection)
 
         results: list[TextChunk] = []
