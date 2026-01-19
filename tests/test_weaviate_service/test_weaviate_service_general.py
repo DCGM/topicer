@@ -107,9 +107,9 @@ def test_integration_explicit_close_and_reconnect_integration(integration_servic
     service.close() # Should not crash
     assert service._client is None
     
-    # Reconnect by creating a new instance
-    new_service = WeaviateService()
-    assert new_service._client.is_connected() is True
-    new_service.close()
-    assert new_service._client is None
+    # Reconnect by calling connect
+    service.connect()
+    assert service._client.is_connected() is True
+    service.close()
+    assert service._client is None
     
