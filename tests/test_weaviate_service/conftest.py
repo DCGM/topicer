@@ -16,6 +16,7 @@ def mock_service(mocker):
 
     # Initialize the WeaviateService which will use the mocked client
     service = WeaviateService()
+    service.connect()
 
     # Return both the service and the mock client for further configuration in tests
     return service, mock_client
@@ -25,6 +26,8 @@ def mock_service(mocker):
 def integration_service():
     # Initialize WeaviateService (it will connect to localhost:8080 by default)
     service = WeaviateService()
+    service.connect()
+    
     client = service._client
 
     # --- SETUP: Create schema ---
@@ -54,7 +57,7 @@ def integration_service():
 
     # --- TEARDOWN: Recreate connection if closed in test ---
     if service._client is None:
-        service.__post_init__()
+        service.connect()
     
     service._client.collections.delete(service.chunks_collection)
     service._client.collections.delete(service.chunk_user_collection_ref)
