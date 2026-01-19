@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 def test_weaviate_service_cleanup_mock_unit(mock_service):
     service, mock_client = mock_service
 
-    # Verifify manual close
+    # Verify manual close
     service.close()
 
     assert mock_client.close.call_count == 1
