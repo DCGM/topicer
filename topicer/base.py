@@ -133,9 +133,8 @@ class BaseDBConnection(ABC, ConfigurableMixin):
     @abstractmethod
     def find_similar_text_chunks(self, text: str, embedding: np.ndarray, db_request: DBRequest | None = None, k: int | None = None) -> list[TextChunk]:
         """
-        Find similar text chunks in the database based on the provided text and embedding using hybrid search.
+        Find similar text chunks in the database based on the provided text and embedding using hybrid search. configurable from YAML config file.
         
-        :param self: Reference to the current instance
         :param text: Text to find similar chunks for
         :type text: str
         :param embedding: Embedding vector to use for similarity search
