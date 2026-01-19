@@ -149,7 +149,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         k: int | None = None,
     ) -> list[TextChunk]:
         # Access the chunks collection
-        chunks_collection = self._client.collections.use(
+        chunks_collection = self.client.collections.use(
             self.chunks_collection)
 
         results: list[TextChunk] = []
@@ -189,7 +189,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
             return np.array([])
 
         # Access the chunks collection
-        chunks_collection = self._client.collections.use(
+        chunks_collection = self.client.collections.use(
             self.chunks_collection)
 
         # We need to extract the UUIDs of the text chunks
@@ -202,9 +202,9 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         )
 
         vector_map = {
-            obj.uuid: obj.vector["default"]
+            obj.uuid: obj.vector.get("default")
             for obj in response.objects
-            if obj.vector and "default" in obj.vector
+            if obj.vector
         }
 
         embeddings = []
