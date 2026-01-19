@@ -120,14 +120,47 @@ class BaseDBConnection(ABC, ConfigurableMixin):
 
     @abstractmethod
     def get_text_chunks(self, db_request: DBRequest) -> list[TextChunk]:
+        """
+        Fetch text chunks from the database based on the provided DBRequest.
+        
+        :param self: Reference to the current instance
+        :param db_request: Database request object containing parameters for fetching text chunks
+        :type db_request: DBRequest
+        :return: Description
+        :rtype: list[TextChunk]
+        """
         ...
     
     @abstractmethod
     def find_similar_text_chunks(self, text: str, embedding: np.ndarray, db_request: DBRequest | None = None, k: int | None = None) -> list[TextChunk]:
+        """
+        Find similar text chunks in the database based on the provided text and embedding using hybrid search.
+        
+        :param self: Reference to the current instance
+        :param text: Text to find similar chunks for
+        :type text: str
+        :param embedding: Embedding vector to use for similarity search
+        :type embedding: np.ndarray
+        :param db_request: Database request object containing parameters for filtering results
+        :type db_request: DBRequest | None
+        :param k: Limit on number of similar chunks to return
+        :type k: int | None
+        :return: List of similar text chunks
+        :rtype: list[TextChunk]
+        """
         ...
 
     @abstractmethod
     def get_embeddings(self, text_chunks: list[TextChunk]) -> np.ndarray:
+        """
+        Retrieve embeddings for the given text chunks from the database.
+        
+        :param self: Reference to the current instance
+        :param text_chunks: List of text chunks to retrieve embeddings for
+        :type text_chunks: list[TextChunk]
+        :return: Array of embeddings corresponding to the input text chunks
+        :rtype: ndarray[_AnyShape, dtype[Any]]
+        """
         ...
 
 
