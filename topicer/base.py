@@ -118,7 +118,6 @@ class BaseDBConnection(ABC, ConfigurableMixin):
         """
         Fetch text chunks from the database based on the provided DBRequest.
         
-        :param self: Reference to the current instance
         :param db_request: Database request object containing parameters for fetching text chunks
         :type db_request: DBRequest
         :return: Description
@@ -150,7 +149,6 @@ class BaseDBConnection(ABC, ConfigurableMixin):
         """
         Retrieve embeddings for the given text chunks from the database.
         
-        :param self: Reference to the current instance
         :param text_chunks: List of text chunks to retrieve embeddings for
         :type text_chunks: list[TextChunk]
         :return: Array of embeddings corresponding to the input text chunks
