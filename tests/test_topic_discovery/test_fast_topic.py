@@ -1,9 +1,13 @@
-import uuid
+from unittest.mock import MagicMock
 
+import pytest
 import numpy as np
 
-from topicer.schemas import TextChunk
+import uuid
+
+from topicer.schemas import TextChunk, DiscoveredTopicsSparse, Topic
 from topicer.topic_discovery.fast_topic import FastTopicDiscovery
+from topicer.schemas import DBRequest
 
 
 def test_get_top_k_docs_per_topic():
@@ -122,3 +126,78 @@ def test_truncate_texts():
     assert texts[0].text == "Short text."
     assert texts[1].text == "This is a bit longer"
     assert texts[2].text == "Tiny."
+
+
+@pytest.fixture
+def mock_fast_topic_discovery(mocker):
+    mock_db_connection = mocker.MagicMock()
+
+    # Mock the methods used in FastTopicDiscovery
+    mock_db_connection.get_text_chunks.return_value = [
+        TextChunk(id=uuid.uuid4(), text="Sample text 1"),
+        TextChunk(id=uuid.uuid4(), text="Sample text 2"),
+        TextChunk(id=uuid.uuid4(), text="Sample text 3"),
+    ]
+
+    mock_db_connection.get_embeddings.return_value = np.array([
+        [0.1, 0.2, 0.3],
+        [0.4, 0.5, 0.6],
+        [0.7, 0.8, 0.9],
+    ])
+
+    fast_topic_discovery = FastTopicDiscovery()
+    fast_topic_discovery.set_db_connection(mock_db_connection)
+    fast_topic_discovery._get_topics = mocker.AsyncMock(
+        return_value=(["Topic 1", "Topic 2"], np.array([[0.6, 0.4, 0.2], [0.2, 0.4, 0.6]]))
+    )
+    fast_topic_discovery._process_topics = mocker.AsyncMock(
+        return_value=DiscoveredTopicsSparse(
+            topics=[
+                Topic(
+                    name="Topic 1",
+                    name_explanation="Explanation 1",
+                    description="Description 1",
+                ),
+                Topic(
+                    name="Topic 2",
+                    name_explanation="Explanation 2",
+                    description="Description 2",
+                ),
+            ],
+            topic_documents=[
+                [(1, 0.4), (0, 0.6)],
+                [(2, 0.6), (1, 0.4)],
+            ],
+        )
+    )
+
+    return fast_topic_discovery
+
+
+@pytest.mark.asyncio
+async def test_discover_topics_in_db_sparse(
+    mock_fast_topic_discovery: FastTopicDiscovery,
+):
+    db_request = DBRequest(
+        collection_id=uuid.UUID("123e4567-e89b-12d3-a456-426614174000")
+    )
+
+    _ = await mock_fast_topic_discovery.discover_topics_in_db_sparse(
+        db_request=db_request,
+        db_embeddings=True,
+    )
+
+    mock_fast_topic_discovery.db_connection: MagicMock
+    mock_fast_topic_discovery.db_connection.get_text_chunks.assert_called_once_with(
+        db_request,
+    )
+
+    mock_fast_topic_discovery.db_connection.get_embeddings.assert_called_once_with(
+        mock_fast_topic_discovery.db_connection.get_text_chunks.return_value,
+    )
+
+
+
+
+
+
