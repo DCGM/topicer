@@ -19,3 +19,5 @@ ollama~=0.6.1
 json-repair~=0.54.2
 numpy~=2.3.5
 pytest-asyncio
+weaviate-client
+

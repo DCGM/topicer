@@ -96,6 +96,7 @@ You can download the trained models here:
 Implemented using:
 
 * FASTopic
+  * You need to download MorphoDiTa model for Czech language processing (available at https://lindat.mff.cuni.cz/repository/items/c2ad9429-4111-482b-998f-5e2fc5a5abdd)
 * SentenceTransformers (Gemma2-based embeddings)
 * Lemmatization via Morphodita
 * LLM-based topic naming and description (e.g. `gpt-5-mini`)
