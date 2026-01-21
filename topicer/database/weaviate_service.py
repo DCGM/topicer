@@ -1,7 +1,7 @@
 from topicer.base import BaseDBConnection
 from classconfig import ConfigurableMixin, ConfigurableValue
 import weaviate
-from weaviate import WeaviateClient
+from weaviate import WeaviateAsyncClient
 from weaviate.classes.query import Filter
 from topicer.schemas import TextChunk, DBRequest
 import numpy as np
@@ -14,8 +14,8 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
 
     Example usage as a Context Manager (recommended):
 
-        with WeaviateService(host="localhost") as db:
-            chunks = db.get_text_chunks(request)
+        async with WeaviateService(host="localhost") as db:
+            chunks = await db.get_text_chunks(request)
     """
     # Connection config
     host = ConfigurableValue(
@@ -65,7 +65,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
     )
 
     @property
-    def client(self) -> WeaviateClient:
+    def client(self) -> WeaviateAsyncClient:
         """Safe accessor for the Weaviate client."""
         if self._client is None:
             raise RuntimeError(
@@ -75,13 +75,13 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         return self._client
 
     def __post_init__(self):
-        self._client: WeaviateClient | None = None
-        # self.connect() // TODO: Discuss if we want auto-connect on init, I prefer explicit connect or context manager usage.
+        self._client: WeaviateAsyncClient | None = None
+        # await self.connect() // TODO: Discuss if we want auto-connect on init, I prefer explicit connect or context manager usage.
 
-    def connect(self) -> None:
+    async def connect(self) -> None:
         """Establishes connection if not already connected."""
         if self._client is None:
-            self._client = weaviate.connect_to_custom(
+            self._client = weaviate.use_async_with_custom(
                 http_host=self.host,
                 http_port=self.rest_port,
                 http_secure=False,
@@ -89,29 +89,27 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
                 grpc_port=self.grpc_port,
                 grpc_secure=False,
             )
+            await self._client.connect()
 
-    def close(self):
+    async def close(self):
         client = getattr(self, '_client', None)
         if client is not None:
             try:
-                client.close()
+                await client.close()
             except Exception:
                 logging.warning(
                     "Failed to close Weaviate client", exc_info=True)
             finally:
                 self._client = None
 
-    def __enter__(self) -> "WeaviateService":
-        self.connect()
+    async def __aenter__(self) -> "WeaviateService":
+        await self.connect()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.close()
+    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
+        await self.close()
 
-    def __del__(self) -> None:
-        self.close()
-
-    def get_text_chunks(self, db_request: DBRequest) -> list[TextChunk]:
+    async def get_text_chunks(self, db_request: DBRequest) -> list[TextChunk]:
         # Access the chunks collection
         chunks_collection = self.client.collections.use(
             self.chunks_collection)
@@ -124,7 +122,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
             db_request.collection_id is not None
         ) else None
 
-        response = chunks_collection.query.fetch_objects(
+        response = await chunks_collection.query.fetch_objects(
             filters=chunk_filter,
             limit=MAX_TOTAL_LIMIT,
             return_properties=[self.chunk_text_prop],
@@ -141,7 +139,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         # Return all fetched results in a single list
         return results
 
-    def find_similar_text_chunks(
+    async def find_similar_text_chunks(
         self,
         text: str,
         embedding: np.ndarray,
@@ -162,7 +160,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
 
         vec = embedding.tolist()
 
-        response = chunks_collection.query.hybrid(
+        response =  await chunks_collection.query.hybrid(
             query=text,
             vector=vec,
             alpha=self.hybrid_search_alpha,
@@ -183,7 +181,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         # Return the results
         return results
 
-    def get_embeddings(self, text_chunks: list[TextChunk]) -> np.ndarray:
+    async def get_embeddings(self, text_chunks: list[TextChunk]) -> np.ndarray:
         # If no text chunks, return empty array
         if not text_chunks:
             return np.array([])
@@ -195,7 +193,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         # We need to extract the UUIDs of the text chunks
         uuids = [chunk.id for chunk in text_chunks]
 
-        response = chunks_collection.query.fetch_objects_by_ids(
+        response = await chunks_collection.query.fetch_objects_by_ids(
             ids=uuids,
             include_vector=True,
             return_properties=[],
