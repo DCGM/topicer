@@ -27,6 +27,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 markers = [
     "unit: marks tests as unit tests",
     "integration: marks tests as integration tests",
