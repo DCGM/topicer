@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 from topicer.schemas import DBRequest
 from topicer.schemas import TextChunk
 from uuid import uuid4
@@ -8,13 +8,10 @@ from uuid import uuid4
 # -------------------- UNIT TESTS --------------------
 
 @pytest.mark.unit
-def test_get_text_chunks_success_unit(mock_service):
+async def test_get_text_chunks_success_unit(mock_service):
     # Arrange
     service, mock_client = mock_service
 
-    # Fake collection and query
-    mock_collection = MagicMock()
-    mock_client.collections.use.return_value = mock_collection
 
     # Fake returned objects
     fake_uuid = uuid4()
@@ -26,11 +23,14 @@ def test_get_text_chunks_success_unit(mock_service):
     mock_response = MagicMock()
     mock_response.objects = [mock_obj]
 
-    mock_collection.query.fetch_objects.return_value = mock_response
+    # Fake collection and query
+    mock_collection = MagicMock()
+    mock_client.collections.use = MagicMock(return_value=mock_collection)
+    mock_collection.query.fetch_objects = AsyncMock(return_value=mock_response)
 
     # Act
     request = DBRequest(collection_id=uuid4())
-    result = service.get_text_chunks(request)
+    result = await service.get_text_chunks(request)
 
     # Assert
     assert len(result) == 1
@@ -40,11 +40,9 @@ def test_get_text_chunks_success_unit(mock_service):
     assert mock_collection.query.fetch_objects.call_count == 1
     
 @pytest.mark.unit
-def test_get_text_chunks_with_filter_unit(mock_service):
+async def test_get_text_chunks_with_filter_unit(mock_service):
     # Arrange
     service, mock_client = mock_service
-    mock_collection = MagicMock()
-    mock_client.collections.use.return_value = mock_collection
 
     fake_uuid = uuid4()
     mock_obj = MagicMock()
@@ -53,12 +51,15 @@ def test_get_text_chunks_with_filter_unit(mock_service):
 
     mock_response = MagicMock()
     mock_response.objects = [mock_obj]
-    mock_collection.query.fetch_objects.return_value = mock_response
+    
+    mock_collection = MagicMock()
+    mock_client.collections.use = MagicMock(return_value=mock_collection)
+    mock_collection.query.fetch_objects = AsyncMock(return_value=mock_response)
 
     # Act
     collection_id = uuid4()
     request = DBRequest(collection_id=collection_id)
-    result = service.get_text_chunks(request)
+    result = await service.get_text_chunks(request)
 
     # Assert
     assert len(result) == 1
@@ -68,11 +69,10 @@ def test_get_text_chunks_with_filter_unit(mock_service):
     assert kwargs['filters'] is not None  # Filter should be set
 
 @pytest.mark.unit
-def test_get_text_chunks_large_volume_unit(mock_service):
+async def test_get_text_chunks_large_volume_unit(mock_service):
     # --- Arrange ---
     service, mock_client = mock_service
-    mock_collection = MagicMock()
-    mock_client.collections.use.return_value = mock_collection
+    
 
     # We generate a larger number of fake objects to simulate large data retrieval
     num_objects = 5000
@@ -91,12 +91,13 @@ def test_get_text_chunks_large_volume_unit(mock_service):
     mock_response = MagicMock()
     mock_response.objects = fake_objects
 
-    # Mock fetch_objects to return all data in a single call
-    mock_collection.query.fetch_objects.return_value = mock_response
+    mock_collection = MagicMock()
+    mock_client.collections.use = MagicMock(return_value=mock_collection)
+    mock_collection.query.fetch_objects = AsyncMock(return_value=mock_response)
 
     # --- Act ---
     request = DBRequest(collection_id=uuid4())
-    result = service.get_text_chunks(request)
+    result = await service.get_text_chunks(request)
 
     # --- Assert ---
     # Verify that all 5000 objects were returned
@@ -117,50 +118,50 @@ def test_get_text_chunks_large_volume_unit(mock_service):
     assert kwargs['limit'] >= 100000
 
 @pytest.mark.unit
-def test_get_text_chunks_handles_error_unit(mock_service):
+async def test_get_text_chunks_handles_error_unit(mock_service):
     # Arrange
     service, mock_client = mock_service
     mock_collection = MagicMock()
-    mock_client.collections.use.return_value = mock_collection
-
+    mock_client.collections.use = MagicMock(return_value=mock_collection)
+    
     mock_collection.query.fetch_objects.side_effect = RuntimeError("DB error")
 
     # Assert
     request = DBRequest(collection_id=uuid4())
     with pytest.raises(RuntimeError):
-        service.get_text_chunks(request)
+        await service.get_text_chunks(request)
 
 # -------------------- INTEGRATION TESTS --------------------
     
 @pytest.mark.integration
-def test_get_text_chunks_success_integration(integration_service):
+async def test_get_text_chunks_success_integration(integration_service):
     service = integration_service
     client = service._client
     user_coll = client.collections.use(service.chunk_user_collection_ref)
     coll = client.collections.use(service.chunks_collection)
 
     # We create objects in UserCollection first
-    target_user_id = user_coll.data.insert(properties={})
-    other_user_id = user_coll.data.insert(properties={})
+    target_user_id = await user_coll.data.insert(properties={})
+    other_user_id = await user_coll.data.insert(properties={})
 
     # We insert 2 objects that match the filter
-    coll.data.insert(
+    await coll.data.insert(
         properties={service.chunk_text_prop: "This text we want"},
         references={service.chunk_user_collection_ref: target_user_id}
     )
-    coll.data.insert(
+    await coll.data.insert(
         properties={service.chunk_text_prop: "This one too"},
         references={service.chunk_user_collection_ref: target_user_id}
     )
     # We insert 1 object that the filter should NOT find
-    coll.data.insert(
+    await coll.data.insert(
         properties={service.chunk_text_prop: "This one should not be found"},
         references={service.chunk_user_collection_ref: other_user_id}
     )
 
     # We call your method
     request = DBRequest(collection_id=target_user_id)
-    results = service.get_text_chunks(request)
+    results = await service.get_text_chunks(request)
 
     # Assertions
     assert len(results) == 2
@@ -170,21 +171,21 @@ def test_get_text_chunks_success_integration(integration_service):
     assert "This one should not be found" not in texts
         
 @pytest.mark.integration
-def test_get_text_chunks_large_volume_integration(integration_service):
+async def test_get_text_chunks_large_volume_integration(integration_service):
     service = integration_service
     client = service._client
     user_coll = client.collections.use(service.chunk_user_collection_ref)
     coll = client.collections.use(service.chunks_collection)
 
     # Insert a user collection object to reference
-    target_user_id = user_coll.data.insert(properties={})
+    target_user_id = await user_coll.data.insert(properties={})
 
     num_objects = 1500 
     expected_ids = set()
 
     # Insert a large number of objects
     for i in range(num_objects):
-        obj_id = coll.data.insert(
+        obj_id = await coll.data.insert(
             properties={service.chunk_text_prop: f"Object number {i}"},
             references={service.chunk_user_collection_ref: target_user_id}
         )
@@ -192,7 +193,7 @@ def test_get_text_chunks_large_volume_integration(integration_service):
 
     # Action
     request = DBRequest(collection_id=target_user_id)
-    results = service.get_text_chunks(request)
+    results = await service.get_text_chunks(request)
 
     # Assertions
     assert len(results) == num_objects
