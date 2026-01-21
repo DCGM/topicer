@@ -116,7 +116,7 @@ class BaseDBConnection(ABC, ConfigurableMixin):
     """Base interface for database connections."""
 
     @abstractmethod
-    def get_text_chunks(self, db_request: DBRequest) -> list[TextChunk]:
+    async def get_text_chunks(self, db_request: DBRequest) -> list[TextChunk]:
         """
         Fetch text chunks from the database based on the provided DBRequest.
 
@@ -128,7 +128,7 @@ class BaseDBConnection(ABC, ConfigurableMixin):
         ...
     
     @abstractmethod
-    def find_similar_text_chunks(self, text: str, embedding: np.ndarray, db_request: DBRequest | None = None, k: int | None = None) -> list[TextChunk]:
+    async def find_similar_text_chunks(self, text: str, embedding: np.ndarray, db_request: DBRequest | None = None, k: int | None = None) -> list[TextChunk]:
         """
         Find similar text chunks in the database based on the provided text and embedding using hybrid search. configurable from YAML config file.
 
@@ -146,7 +146,7 @@ class BaseDBConnection(ABC, ConfigurableMixin):
         ...
 
     @abstractmethod
-    def get_embeddings(self, text_chunks: list[TextChunk]) -> np.ndarray:
+    async def get_embeddings(self, text_chunks: list[TextChunk]) -> np.ndarray:
         """
         Retrieve embeddings for the given text chunks from the database.
 
