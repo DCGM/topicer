@@ -1,13 +1,13 @@
 import pytest
 import numpy as np
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 from topicer.schemas import DBRequest, TextChunk
 from uuid import uuid4
 
 # -------------------- UNIT TESTS --------------------
 
 @pytest.mark.unit
-def test_find_similar_text_chunks_unit(mock_service):
+async def test_find_similar_text_chunks_unit(mock_service):
     service, mock_client = mock_service
 
     # Definition of the test data
@@ -22,13 +22,18 @@ def test_find_similar_text_chunks_unit(mock_service):
 
     mock_response = MagicMock()
     mock_response.objects = [mock_obj]
+    
+    # We create a synchronous MagicMock for the collection
+    mock_collection = MagicMock()
+    
+    # The use method returns our mock collection
+    mock_client.collections.use = MagicMock(return_value=mock_collection)
 
-    # Mocking the chain of calls to reach hybrid search
-    mock_collection = mock_client.collections.use.return_value
-    mock_collection.query.hybrid.return_value = mock_response
+    # We need to make the hybrid method async
+    mock_collection.query.hybrid = AsyncMock(return_value=mock_response)
 
     # Action
-    results = service.find_similar_text_chunks(
+    results = await service.find_similar_text_chunks(
         text="query text",
         embedding=test_embedding,
         db_request=db_request,
@@ -50,18 +55,25 @@ def test_find_similar_text_chunks_unit(mock_service):
 
 
 @pytest.mark.unit
-def test_find_similar_text_chunks_no_results_unit(mock_service):
+async def test_find_similar_text_chunks_no_results_unit(mock_service):
     service, mock_client = mock_service
 
     test_embedding = np.array([0.5, 0.5, 0.5])
 
     mock_response = MagicMock()
     mock_response.objects = []
+    
+    # We create a synchronous MagicMock for the collection
+    mock_collection = MagicMock()
+    
+    # The use method must be synchronous and return our mock collection
+    mock_client.collections.use = MagicMock(return_value=mock_collection)
 
-    mock_collection = mock_client.collections.use.return_value
-    mock_collection.query.hybrid.return_value = mock_response
+    # We need to make the hybrid method async
+    mock_collection.query.hybrid = AsyncMock(return_value=mock_response)
 
-    results = service.find_similar_text_chunks(
+
+    results = await service.find_similar_text_chunks(
         text="non-matching query",
         embedding=test_embedding,
         db_request=None,
@@ -72,9 +84,8 @@ def test_find_similar_text_chunks_no_results_unit(mock_service):
 
 # -------------------- INTEGRATION TESTS --------------------
 
-
 @pytest.mark.integration
-def test_find_similar_text_chunks_integration(integration_service):
+async def test_find_similar_text_chunks_integration(integration_service):
     service = integration_service
     client = service._client
 
@@ -83,11 +94,11 @@ def test_find_similar_text_chunks_integration(integration_service):
 
     # Create a user collection object (since we filter via references)
     user_col = client.collections.use(service.chunk_user_collection_ref)
-    user_col.data.insert(properties={}, uuid=user_col_id)
+    await user_col.data.insert(properties={}, uuid=user_col_id)
 
     # Insert a test chunk with a reference to the user
     chunks_col = client.collections.use(service.chunks_collection)
-    chunks_col.data.insert(
+    await chunks_col.data.insert(
         properties={
             service.chunk_text_prop: "This is a sample text about programming."},
         references={service.chunk_user_collection_ref: user_col_id},
@@ -98,7 +109,7 @@ def test_find_similar_text_chunks_integration(integration_service):
     db_request = DBRequest(collection_id=user_col_id)
     embedding = np.array([0.1] * 1536)
 
-    results = service.find_similar_text_chunks(
+    results = await service.find_similar_text_chunks(
         text="programming",
         embedding=embedding,
         db_request=db_request,
@@ -111,7 +122,7 @@ def test_find_similar_text_chunks_integration(integration_service):
 
 
 @pytest.mark.integration
-def test_find_similar_text_chunks_no_match_integration(integration_service):
+async def test_find_similar_text_chunks_no_match_integration(integration_service):
     service = integration_service
     client = service._client
 
@@ -119,7 +130,7 @@ def test_find_similar_text_chunks_no_match_integration(integration_service):
     user_col_id = uuid4()
 
     user_col = client.collections.use(service.chunk_user_collection_ref)
-    user_col.data.insert(properties={}, uuid=user_col_id)
+    await user_col.data.insert(properties={}, uuid=user_col_id)
 
     # Vector in DB (1.0 at start, rest 0s)
     vector_in_db = [0.0] * 1536
@@ -130,7 +141,7 @@ def test_find_similar_text_chunks_no_match_integration(integration_service):
     query_vector[1] = 1.0
 
     chunks_col = client.collections.use(service.chunks_collection)
-    chunks_col.data.insert(
+    await chunks_col.data.insert(
         properties={
             service.chunk_text_prop: "This text is about cooking."},
         references={service.chunk_user_collection_ref: user_col_id},
@@ -141,7 +152,7 @@ def test_find_similar_text_chunks_no_match_integration(integration_service):
     db_request = DBRequest(collection_id=user_col_id)
     embedding = np.array(query_vector)
 
-    results = service.find_similar_text_chunks(
+    results = await service.find_similar_text_chunks(
         text="quantum physics",
         embedding=embedding,
         db_request=db_request,
@@ -153,14 +164,14 @@ def test_find_similar_text_chunks_no_match_integration(integration_service):
 
 
 @pytest.mark.integration
-def test_find_similar_text_chunks_ranking_integration(integration_service):
+async def test_find_similar_text_chunks_ranking_integration(integration_service):
     service = integration_service
     client = service._client
     user_col_id = uuid4()
 
     # Create a user collection object
     user_col = client.collections.use(service.chunk_user_collection_ref)
-    user_col.data.insert(properties={}, uuid=user_col_id)
+    await user_col.data.insert(properties={}, uuid=user_col_id)
     chunks_col = client.collections.use(service.chunks_collection)
 
     # We define three texts with decreasing relevance to the query "python programming"
@@ -191,7 +202,7 @@ def test_find_similar_text_chunks_ranking_integration(integration_service):
     ]
 
     for (label, txt), vec in zip(texts, vectors):
-        chunks_col.data.insert(
+        await chunks_col.data.insert(
             properties={service.chunk_text_prop: txt},
             references={service.chunk_user_collection_ref: user_col_id},
             vector=vec
@@ -199,7 +210,7 @@ def test_find_similar_text_chunks_ranking_integration(integration_service):
 
     # Action
     db_request = DBRequest(collection_id=user_col_id)
-    results = service.find_similar_text_chunks(
+    results = await service.find_similar_text_chunks(
         text="python programming",
         embedding=np.array(query_vector),
         db_request=db_request,
