@@ -160,7 +160,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
 
         vec = embedding.tolist()
 
-        response =  await chunks_collection.query.hybrid(
+        response = await chunks_collection.query.hybrid(
             query=text,
             vector=vec,
             alpha=self.hybrid_search_alpha,
