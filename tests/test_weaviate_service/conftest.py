@@ -1,6 +1,6 @@
 # conftest.py is used to set up fixtures and configurations for the test suite.
 import pytest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock
 from topicer.database.weaviate_service import WeaviateService
 import weaviate.classes.config as wvcc
 
