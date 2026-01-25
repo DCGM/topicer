@@ -54,13 +54,13 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
         ### Available Tags:
         {tags_json}
         """
-
-        # Call LLM service to get structured tag proposals. The method expects a list of text chunks but we provide only one.
-        llm_proposals_list: list[LLMTagProposalList] = await self.llm_service.process_text_chunks_structured(text_chunks=[input_text],
-                                                                                                        instruction=instructions,
+        
+        async with self.llm_service as llm_service:
+            # Call LLM service to get structured tag proposals. The method expects a list of text chunks but we provide only one.
+            llm_proposals_list: list[LLMTagProposalList] = await llm_service.process_text_chunks_structured(text_chunks=[input_text],
+                                                                                                            instruction=instructions,
                                                                                                         output_type=LLMTagProposalList)
-                                                                                                        
-        await self.llm_service.close()
+
         # Extract proposals from the single response
         llm_proposals = llm_proposals_list[0].proposals
 
