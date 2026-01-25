@@ -3,6 +3,9 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel
 import asyncio
 
+from rich.console import Console
+from rich.status import Status
+
 from topicer.base import BaseLLMService
 
 
@@ -66,6 +69,7 @@ class OpenAIService(BaseLLMService, ConfigurableMixin):
         return [res for res in results]
 
     async def process_text_chunks_structured(self, text_chunks: list[str], instruction: str, output_type: type[BaseModel], model: str | None = None) -> list[BaseModel]:
+        console = Console()
 
         async def proces_single_chunk(text_chunk: str) -> BaseModel:
             response = await self.client.responses.parse(
@@ -79,7 +83,8 @@ class OpenAIService(BaseLLMService, ConfigurableMixin):
             )
             return response.output_parsed
 
-        tasks = [proces_single_chunk(tc) for tc in text_chunks]
-        results = await asyncio.gather(*tasks)
+        with console.status("[bold green]Waiting for response from OpenAI LLM model", spinner="dots"):
+            tasks = [proces_single_chunk(tc) for tc in text_chunks]
+            results = await asyncio.gather(*tasks)
 
         return [res for res in results]
