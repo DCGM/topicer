@@ -3,15 +3,18 @@ from topicer.base import BaseTopicer, MissingServiceError
 from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals
 from topicer.tagging.tagging_schemas import LLMTagProposalList
 import logging
-from topicer.tagging.utils import find_exact_span
 from topicer.schemas import DBRequest
 from classconfig import ConfigurableMixin, ConfigurableValue
 from topicer.llm.openai import OpenAIService
+from topicer.utils.fuzzy_matcher import FuzzyMatcher
 
 
 class LLMTopicer(BaseTopicer, ConfigurableMixin):
     span_granularity: str = ConfigurableValue(
         desc="Granularity level for span extraction", user_default="phrase")
+
+    def __post_init__(self) -> None:
+        self.fuzzy_matcher: FuzzyMatcher = FuzzyMatcher(max_dist_ratio=0.2)
 
     def check_init(self) -> None:
         """Check if all required services are set. Raise MissingServiceError if not."""
@@ -69,8 +72,12 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
         # Post-processing in Python (Calculating indices)
         for prop in llm_proposals:
             # We have quote and context_before, need to find indices in text_chunk.text
-            indices = find_exact_span(
-                text_chunk.text, prop.quote, prop.context_before)
+            indices = self.fuzzy_matcher.find_best_span(
+                full_text=text_chunk.text,
+                quote=prop.quote,
+                context_before=prop.context_before,
+                context_after=prop.context_after
+            )
 
             if indices:
                 start, end = indices
