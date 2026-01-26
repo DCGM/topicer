@@ -39,7 +39,8 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
         2. Identify spans that match the definitions of the Available Tags.
         3. For each match, you MUST extract:
            - `quote`: The **EXACT** substring from the text. Copy it precisely, character for character.
-           - `context_before`: The 5-10 words immediately preceding the quote. This is crucial to locate the text if the phrase appears multiple times.
+           - `context_before`: The 5-10 words immediately preceding the quote, if available. This is crucial to locate the text if the phrase appears multiple times.
+           - `context_after`: The 5-10 words immediately following the quote, if available. This is crucial to locate the text if the phrase appears multiple times.
            - `tag`: The matching tag object.
            - `confidence`: A score between 0.0 and 1.0. Indicate how confident you are that this quote matches the tag. Try to be as accurate as possible, the confidence doesn't necessarily need to be really close to 1.0. You don't need to only return high-confidence matches; lower-confidence matches are acceptable if you believe they might be relevant. It's better to provide more options for downstream processing, but do not flood with very low-confidence matches.
            - `reason`: (optional) A brief explanation of why you selected this quote for the tag.
@@ -57,12 +58,12 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
         ### Available Tags:
         {tags_json}
         """
-        
+
         async with self.llm_service as llm_service:
             # Call LLM service to get structured tag proposals. The method expects a list of text chunks but we provide only one.
             llm_proposals_list: list[LLMTagProposalList] = await llm_service.process_text_chunks_structured(text_chunks=[input_text],
                                                                                                             instruction=instructions,
-                                                                                                        output_type=LLMTagProposalList)
+                                                                                                            output_type=LLMTagProposalList)
 
         # Extract proposals from the single response
         llm_proposals = llm_proposals_list[0].proposals
@@ -95,7 +96,9 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
             else:
                 # Logging: LLM returned text that is not found in the document
                 logging.warning(
-                    f"Could not locate quote '{prop.quote}' in text chunk {text_chunk.id}")
+                    f"Could not locate quote '{prop.quote}' in text chunk {text_chunk.id}"
+                    f" using provided context_before '{prop.context_before}' and context_after '{prop.context_after}'."
+                    )
 
         return TextChunkWithTagSpanProposals(
             id=text_chunk.id,
