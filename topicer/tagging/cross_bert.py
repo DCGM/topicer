@@ -16,6 +16,35 @@ class FailedToLoadModelError(Exception):
     pass
 
 
+def cross_dot_product(
+    model_outputs: torch.Tensor,
+    token_type_ids: torch.Tensor,
+    normalize_score: bool = True,
+) -> torch.Tensor:
+    """
+    Calculates cross dot product between topic and text tokens based on their embeddings and token type ids.
+    
+    Parameters:
+        model_outputs (torch.Tensor): The output embeddings from the model.
+        token_type_ids (torch.Tensor): The token type ids indicating topic and text tokens.
+        normalize_score (bool, default=True): Whether to normalize the similarity scores by the square root of the embedding dimension.
+
+    Returns:
+        torch.Tensor: The similarity matrix between topic and text tokens.
+    """
+    topic_mask = (token_type_ids == 0)
+    text_mask = (token_type_ids == 1)
+
+    topic_tokens = model_outputs[topic_mask.bool()][1:-1]  # exclude CLS and SEP
+    text_tokens = model_outputs[text_mask.bool()][:-1]     # exclude SEP
+
+    similarity_matrix = torch.matmul(topic_tokens, text_tokens.T)  # shape (topic_len, text_len)
+    if normalize_score:
+        similarity_matrix = similarity_matrix / torch.sqrt(torch.tensor(model_outputs.shape[-1], dtype=torch.float32))
+
+    return similarity_matrix
+
+
 class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
     model: str = ConfigurableValue(desc="Either a HuggingFace model name or a local path to the model directory.", user_default="UWB-AIR/Czert-B-base-cased")
     threshold: float = ConfigurableValue(desc="Threshold for topic tagging", user_default=0.5)
@@ -32,18 +61,30 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
         self._model.eval()
 
     def load_model_from_hf(self) -> None:
+        """
+        Loads a CrossBertTopicer model from HuggingFace.
+        """
         logger.debug(f"Loading CrossBertTopicer model from HuggingFace: {self.model} ...")
         self._model = AutoModel.from_pretrained(self.model)
         self._tokenizer = AutoTokenizer.from_pretrained(self.model)
         self.loaded_from_huggingface = True
 
     def load_local_model(self) -> None:
+        """
+        Loads a traced CrossBertTopicer model from a local path.
+        """
         logger.debug(f"Loading CrossBertTopicer model from local path: {self.model} ...")
         model_path = Path(self.model) / f"model_{self.device}.pt"
         self._model = torch.jit.load(str(model_path), map_location=self.device)
         self._tokenizer = AutoTokenizer.from_pretrained(self.model)
 
     def load_model(self):
+        """
+        Attempts to load model based on the provided configuration. It first tries to load from HuggingFace, and if that fails, it attempts to load from a local path.
+
+        Raises:
+            FailedToLoadModelError: If the model cannot be loaded from either source.
+        """
         try:
             self.load_model_from_hf()
             return
@@ -60,6 +101,16 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
         pass
     
     def tokenize(self, chunk_text: str, tag_text: str) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, list[tuple[int, int]]]:
+        """
+        Tokenizes the combined tag and text chunk using the tokenizer.
+
+        Parameters:
+            chunk_text (str): The text chunk to be tokenized.
+            tag_text (str): The tag text to be tokenized.
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor, torch.Tensor, list[tuple[int, int]]: The input ids, attention mask, token type ids, and offset mapping.
+        """
         tokenizer_output = self._tokenizer(
             tag_text,
             chunk_text,
@@ -77,15 +128,36 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
         return input_ids, attention_mask, token_type_ids, offset_mapping
     
     def calculate_probabilities(self, model_outputs: torch.Tensor, token_type_ids: torch.Tensor) -> torch.Tensor:
-        similarity_matrix = self.cross_dot_product(
+        """
+        Calculates tag probabilities for each token in the text chunk based on model outputs and token type ids.
+
+        Parameters:
+            model_outputs (torch.Tensor): The output embeddings from the model.
+            token_type_ids (torch.Tensor): The token type ids indicating topic and text tokens.
+
+        Returns:
+            torch.Tensor: The probabilities of the tag for each token in the text chunk.
+        """
+        similarity_matrix = cross_dot_product(
             model_outputs=model_outputs,
             token_type_ids=token_type_ids,
+            normalize_score=self.normalize_score,
         )
         max_similarities = torch.max(similarity_matrix, dim=0)[0] if not self.soft_max_score else torch.logsumexp(similarity_matrix, dim=0)
         max_similarities = torch.sigmoid(max_similarities)
         return max_similarities
 
     def propose_tag(self, text_chunk: TextChunk, tag: Tag) -> list[TagSpanProposal]:
+        """
+        Proposes spans for a single tag in the given text chunk.
+        
+        Parameters:
+            text_chunk (TextChunk): The text chunk to be analyzed.
+            tag (Tag): The tag to be proposed.
+
+        Returns:
+            list[TagSpanProposal]: A list of proposed tag spans.
+        """
         chunk_text = text_chunk.text
         tag_text = tag.name + (f" - {tag.description}" if tag.description is not None else "")
     
@@ -103,6 +175,21 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
         return spans
 
     def extract_spans(self, predictions: list[int], offset_mapping: list[tuple[int, int]], tag: Tag) -> list[TagSpanProposal]:
+        """
+        Finds spans of text that correspond to the given tag based on model predictions. It also accounts for gaps in model predictions based on a specified tolerance.
+        
+        Parameters:
+            predictions (list[int]): The list of binary predictions for each token.
+            offset_mapping (list[tuple[int, int]]): The list of character offsets for each token.
+            tag (Tag): The tag for which spans are being extracted.
+
+        Returns:
+            list[TagSpanProposal]: A list of proposed tag spans.
+
+        Raises:
+            ValueError: If the lengths of predictions and offset_mapping do not match.
+        """
+
         gap_tolerance = self.gap_tolerance
 
         char_spans = []
@@ -147,6 +234,16 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
         return char_spans
 
     async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
+        """
+        Finds presence and locations of given tags in the provided text chunk.
+
+        Parameters:
+            text_chunk (TextChunk): The text chunk to be analyzed.
+            tags (list[Tag]): The list of tags to be proposed.
+
+        Returns:
+            TextChunkWithTagSpanProposals: The text chunk with proposed tag spans.
+        """
         proposals = []
         for tag in tags:
             proposals.extend(self.propose_tag(text_chunk, tag))
@@ -159,25 +256,21 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
         return result
 
     async def propose_tags_in_db(self, tag: Tag, db_request: DBRequest) -> list[TextChunkWithTagSpanProposals]:
+        """
+        Finds a presence and location of a given tag for text chunks retrieved from the database based on the provided DB request.
+
+        Parameters:
+            tag (Tag): The tag to be proposed.
+            db_request (DBRequest): The database request to retrieve text chunks.
+
+        Returns:
+            list[TextChunkWithTagSpanProposals]: A list of text chunks with proposed tag spans.
+
+        Raises:
+            MissingServiceError: If the database connection is not set.
+        """
         if self.db_connection is None:
             raise MissingServiceError("DB connection is not set for CrossBertTopicer. This can happen if the class is not properly initialized.")
         
         text_chunks = self.db_connection.get_text_chunks(db_request)
         return [self.propose_tags(text_chunk, [tag]) for text_chunk in text_chunks]
-
-    def cross_dot_product(
-        self,
-        model_outputs: torch.Tensor,
-        token_type_ids: torch.Tensor,
-    ) -> torch.Tensor:
-        topic_mask = (token_type_ids == 0)
-        text_mask = (token_type_ids == 1)
-
-        topic_tokens = model_outputs[topic_mask.bool()][1:-1]  # exclude CLS and SEP
-        text_tokens = model_outputs[text_mask.bool()][:-1]     # exclude SEP
-
-        similarity_matrix = torch.matmul(topic_tokens, text_tokens.T)  # shape (topic_len, text_len)
-        if self.normalize_score:
-            similarity_matrix = similarity_matrix / torch.sqrt(torch.tensor(model_outputs.shape[-1], dtype=torch.float32))
-
-        return similarity_matrix
