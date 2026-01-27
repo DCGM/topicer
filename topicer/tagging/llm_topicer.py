@@ -1,5 +1,5 @@
 import json
-from topicer.base import BaseTopicer
+from topicer.base import BaseTopicer, MissingServiceError
 from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals
 from topicer.tagging.tagging_schemas import LLMTagProposalList
 import logging
@@ -8,15 +8,22 @@ from topicer.schemas import DBRequest
 from classconfig import ConfigurableMixin, ConfigurableValue
 from topicer.llm.openai import OpenAIService
 
-class TagProposalV1(BaseTopicer, ConfigurableMixin):
-    span_granularity: str = ConfigurableValue(desc="Granularity level for span extraction", user_default="phrase")
-    
-    @property
-    def openai(self) -> OpenAIService:
-        return self.llm_service
+
+class LLMTopicer(BaseTopicer, ConfigurableMixin):
+    span_granularity: str = ConfigurableValue(
+        desc="Granularity level for span extraction", user_default="phrase")
+
+    def check_init(self) -> None:
+        """Check if all required services are set. Raise MissingServiceError if not."""
+        if self.llm_service is None:
+            raise MissingServiceError(
+                "LLM service is not set for LLMTopicer.")
+        # if self.db_connection is None:
+        #     raise MissingServiceError(
+        #         "DB connection is not set for LLMTopicer.")
 
     async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
-        
+
         tags_json = json.dumps([tag.model_dump(mode="json")
                                for tag in tags], ensure_ascii=False)
 
@@ -48,21 +55,17 @@ class TagProposalV1(BaseTopicer, ConfigurableMixin):
         {tags_json}
         """
         
-        response = await self.openai.client.responses.parse(
-            model=self.openai.model,
-            instructions=instructions,
-            input=input_text,
-            text_format=LLMTagProposalList,
-            reasoning={
-                "effort": self.openai.reasoning
-            }
-        )        
+        async with self.llm_service as llm_service:
+            # Call LLM service to get structured tag proposals. The method expects a list of text chunks but we provide only one.
+            llm_proposals_list: list[LLMTagProposalList] = await llm_service.process_text_chunks_structured(text_chunks=[input_text],
+                                                                                                            instruction=instructions,
+                                                                                                        output_type=LLMTagProposalList)
 
-        # it is already parsed as LLMTagProposalList
-        llm_proposals = response.output_parsed.proposals
+        # Extract proposals from the single response
+        llm_proposals = llm_proposals_list[0].proposals
 
         final_proposals = []
-        
+
         # Post-processing in Python (Calculating indices)
         for prop in llm_proposals:
             # We have quote and context_before, need to find indices in text_chunk.text

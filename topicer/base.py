@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Sequence, Type
+from typing import Sequence
 
 import numpy as np
 from classconfig import (
@@ -108,7 +108,7 @@ class BaseLLMService(ABC, ConfigurableMixin):
         ...
 
     @abstractmethod
-    async def process_text_chunks_structured(self, text_chunks: list[str], instruction: str, output_type: Type[BaseModel], model: str | None = None) -> list[BaseModel]:
+    async def process_text_chunks_structured(self, text_chunks: list[str], instruction: str, output_type: type[BaseModel], model: str | None = None) -> list[BaseModel]:
         ...
 
 
