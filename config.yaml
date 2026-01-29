@@ -7,11 +7,17 @@ llm_service:
   config:
     model: "gpt-5.1"
     reasoning: "high"
-
 embedding_service:
   cls: DefaultEmbeddingService
   config:
-    service_url: "http://localhost:9001"
+    service_url: "http://localhost:8001"
     doc_endpoint: "/embed_documents"
     query_endpoint: "/embed_query"
     timeout: 30
+db_connection:
+  cls: WeaviateService
+  config:
+    host: "localhost"
+    rest_port: 8080
+    grpc_port: 50051
+    chunks_limit: 3
