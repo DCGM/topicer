@@ -1,5 +1,5 @@
 topicer:
-  cls: TagProposalV1
+  cls: LLMTopicer
   config:
     span_granularity: "collocation"
 llm_service:
