@@ -5,7 +5,6 @@ from topicer.tagging.tagging_schemas import LLMTagProposalList
 import logging
 from topicer.schemas import DBRequest
 from classconfig import ConfigurableMixin, ConfigurableValue
-from topicer.llm.openai import OpenAIService
 from topicer.utils.fuzzy_matcher import FuzzyMatcher
 
 
@@ -98,13 +97,44 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
                 logging.warning(
                     f"Could not locate quote '{prop.quote}' in text chunk {text_chunk.id}"
                     f" using provided context_before '{prop.context_before}' and context_after '{prop.context_after}'."
-                    )
-
+                )
+        
         return TextChunkWithTagSpanProposals(
             id=text_chunk.id,
             text=text_chunk.text,
             tag_span_proposals=final_proposals
         )
 
-    async def propose_tags_in_db(self, tag: Tag,  db_request: DBRequest) -> list[TextChunkWithTagSpanProposals]:
-        pass
+    async def propose_tags_in_db(self, tag: Tag,  db_request: DBRequest | None) -> list[TextChunkWithTagSpanProposals]:
+        # if db_request is None:
+        #     raise ValueError(
+        #         "DB request must be provided for propose_tags_in_db in LLMTopicer.")
+
+        results: list[TextChunkWithTagSpanProposals] = []
+
+        tag_embedding = self.embedding_service.embed_queries([tag.name])[0]
+
+        async with self.db_connection as db_conn:
+            print("Hledám podobné texty v DB...")
+            text_chunks: list[TextChunk] = await db_conn.find_similar_text_chunks(
+                text=tag.name,
+                embedding=tag_embedding,
+                db_request=db_request
+            )
+            
+            print(f"Nalezeno {len(text_chunks)} podobných textů v DB pro tag '{tag.name}'.")
+
+        if not text_chunks:
+            logging.info(
+                f"No similar text chunks found for tag '{tag.name}' in the database.")
+            return results
+
+        for text_chunk in text_chunks:
+            proposals = await self.propose_tags(
+                text_chunk=text_chunk,
+                tags=[tag])
+
+            if proposals.tag_span_proposals:
+                results.append(proposals)
+
+        return results
