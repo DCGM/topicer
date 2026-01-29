@@ -29,6 +29,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
     chunks_collection = ConfigurableValue(
         desc="Collection/class name storing text chunks",
         user_default="Chunks_test",
+        voluntary=True,
     )
     # Property on chunk objects that links/filters by user collection id
     chunk_user_collection_ref = ConfigurableValue(
@@ -46,7 +47,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
     # Max chunks to retrieve per request
     chunks_limit = ConfigurableValue(
         desc="Max number of chunks to retrieve per request",
-        user_default=100000,
+        user_default=10000,
         voluntary=True,
     )
 
@@ -60,7 +61,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
     # Max vector distance for similarity searches
     max_vector_distance = ConfigurableValue(
         desc="Maximum vector distance for similarity searches",
-        user_default=0.5,
+        user_default=1.0,
         voluntary=True,
     )
 
