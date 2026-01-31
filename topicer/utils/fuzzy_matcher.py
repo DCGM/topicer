@@ -99,7 +99,7 @@ class FuzzyMatcher:
 
             if total_penalty < min_total_penalty:
                 min_total_penalty = total_penalty
-                best_match_coords = (match.start, match.end)\
+                best_match_coords = (match.start, match.end)
 
 
         return best_match_coords
