@@ -17,6 +17,8 @@ class OpenAIService(BaseLLMService, ConfigurableMixin):
     def __post_init__(self):
         # Jen příprava, zatím nic neotevíráme
         self._client: AsyncOpenAI | None = None
+        self._console: Console = Console()
+        self._stack_count: int = 0
         
     @property
     def client(self) -> AsyncOpenAI:
@@ -29,22 +31,23 @@ class OpenAIService(BaseLLMService, ConfigurableMixin):
         return self._client
 
     async def close(self):
-        if self._client is not None:
+        if self._stack_count > 0:
+            self._stack_count -= 1
+        if self._stack_count == 0 and self._client is not None:
             await self._client.close()
             self._client = None
             
     async def connect(self):
         if self._client is None:
             self._client = AsyncOpenAI()
+        self._stack_count += 1
 
     async def __aenter__(self):
-        if self._client is None:
-            self._client = AsyncOpenAI()
+        await self.connect()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self._client is not None:
-            await self.close()
+        await self.close()
 
     async def process_text_chunks(self, text_chunks: list[str], instruction: str, model: str | None = None) -> list[str]:
         async def process_single_chunk(text_chunk: str) -> str:
@@ -68,7 +71,6 @@ class OpenAIService(BaseLLMService, ConfigurableMixin):
         return [res for res in results]
 
     async def process_text_chunks_structured(self, text_chunks: list[str], instruction: str, output_type: type[BaseModel], model: str | None = None) -> list[BaseModel]:
-        console = Console()
 
         async def process_single_chunk(text_chunk: str) -> BaseModel:
             response = await self.client.responses.parse(
@@ -82,7 +84,7 @@ class OpenAIService(BaseLLMService, ConfigurableMixin):
             )
             return response.output_parsed
 
-        with console.status("[bold green]Waiting for response from OpenAI LLM model", spinner="dots"):
+        with self._console.status("[bold green]Waiting for response from OpenAI LLM model", spinner="dots"):
             tasks = [process_single_chunk(tc) for tc in text_chunks]
             results = await asyncio.gather(*tasks)
 

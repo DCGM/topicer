@@ -9,18 +9,20 @@ user = config['SSH']['user']
 server = config['SSH']['server']
 tunnel_1 = config['TUNNEL_1']
 tunnel_2 = config['TUNNEL_2']
+tunnel_3 = config['TUNNEL_3']
 
 
 # 2. Building the command
 # -L L_PORT:T_HOST:T_PORT
 tunnel_1_arg = f"-L {tunnel_1['local_port']}:{tunnel_1['target_host']}:{tunnel_1['target_port']}"
 tunnel_2_arg = f"-L {tunnel_2['local_port']}:{tunnel_2['target_host']}:{tunnel_2['target_port']}"
+tunnel_3_arg = f"-L {tunnel_3['local_port']}:{tunnel_3['target_host']}:{tunnel_3['target_port']}"
 
 ssh_command = [
     'ssh',
     '-N',
     '-C',
-    '-f',
+    # '-f',
     '-v',
     tunnel_1_arg,
     tunnel_2_arg,

@@ -4,7 +4,9 @@ import logging
 from tests.test_data import tag1, tag2, tag3, text_chunk
 from topicer.schemas import TextChunkWithTagSpanProposals
 from topicer.base import factory
-
+from topicer.schemas import Tag
+from uuid import uuid4
+from topicer.schemas import DBRequest
 
 def print_tag_proposals_with_spans(proposals: TextChunkWithTagSpanProposals):
     """Vytiskne tag proposals s vykrojeným textem podle span_start a span_end"""
@@ -27,15 +29,28 @@ def print_tag_proposals_with_spans(proposals: TextChunkWithTagSpanProposals):
 
 
 async def main():
-    # načtení API klíče
-    load_dotenv()
 
-    # Factory načte API klíč automaticky z prostředí
-    tag_proposal = factory("config.yaml")
+    # # Factory načte API klíč automaticky z prostředí
+    topicer = factory("config.yaml")
+    
+    # tag: Tag = Tag(
+    #     id=uuid4(),
+    #     name="Jaká byla návštěva v Belgii v Antverpách v atletických mezinarodních závodech?",
+    # )
+    tag: Tag = Tag(
+        id=uuid4(),
+        name="Jak se jmenovalo trojsvazkové dílo, které sjednocovalo soustavu měr?",
+    )
+    
+    # proposals: TextChunkWithTagSpanProposals = await topicer.propose_tags(text_chunk, [tag1, tag2, tag3])
+    db_request= DBRequest()
+    proposals_list = await topicer.propose_tags_in_db(tag, db_request)
+    
+    print(f"\nCelkem nalezeno {len(proposals_list)} textů s návrhy tagů v DB.\n")
 
-    proposals: TextChunkWithTagSpanProposals = await tag_proposal.propose_tags(text_chunk, [tag1, tag2, tag3])
-
-    print_tag_proposals_with_spans(proposals)
+    for proposals in proposals_list:
+        print_tag_proposals_with_spans(proposals)
+        
 
 if __name__ == "__main__":
     import asyncio
