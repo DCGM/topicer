@@ -43,7 +43,7 @@ async def main():
     # )
     tag: Tag = Tag(
         id=uuid4(),
-        name="Jak se jmenovalo trojsvazkové dílo, které sjednocovalo soustau měr?",
+        name="Jak se jmenovalo trojsvazkové dílo, které sjednocovalo soustavu měr?",
     )
     
     # proposals: TextChunkWithTagSpanProposals = await topicer.propose_tags(text_chunk, [tag1, tag2, tag3])
