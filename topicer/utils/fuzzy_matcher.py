@@ -1,5 +1,8 @@
 from fuzzysearch import find_near_matches
+import re
+import logging
 
+logger = logging.getLogger(__name__)
 
 class FuzzyMatcher:
     def __init__(self, max_dist_ratio: float = 0.2):
@@ -9,14 +12,25 @@ class FuzzyMatcher:
         """
         self.max_dist_ratio = max_dist_ratio
 
+    def _normalize_text(self, text: str) -> str:
+        """ Normalize text by collapsing whitespace and stripping leading/trailing spaces """
+        if not text:
+            return ""
+
+        return re.sub(r'\s+', ' ', text).strip()
+
     def _get_best_dist(self, target: str, window: str) -> int | None:
         """ Get the best Levenshtein distance between target and window using fuzzysearch """
         # If the target is empty, distance/penalty is 0
         if not target:
             return 0
 
-        max_dist = int(len(target) * self.max_dist_ratio)
-        matches = find_near_matches(target, window, max_l_dist=max_dist)
+        norm_target = self._normalize_text(target)
+        norm_window = self._normalize_text(window)
+
+        max_dist = int(len(norm_target) * self.max_dist_ratio)
+        matches = find_near_matches(
+            norm_target, norm_window, max_l_dist=max_dist)
         return min((m.dist for m in matches), default=None)
 
     def find_best_span(self, full_text: str, quote: str, context_before: str | None = None, context_after: str | None = None) -> tuple[int, int] | None:
