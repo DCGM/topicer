@@ -84,7 +84,7 @@ class OpenAIService(BaseLLMService, ConfigurableMixin):
             )
             return response.output_parsed
 
-        with console.status("[bold green]Waiting for response from OpenAI LLM model", spinner="dots"):
+        with self._console.status("[bold green]Waiting for response from OpenAI LLM model", spinner="dots"):
             tasks = [process_single_chunk(tc) for tc in text_chunks]
             results = await asyncio.gather(*tasks)
 
