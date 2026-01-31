@@ -8,22 +8,21 @@ from topicer.schemas import DBRequest
 from classconfig import ConfigurableMixin, ConfigurableValue
 from topicer.utils.fuzzy_matcher import FuzzyMatcher
 
-
 class LLMTopicer(BaseTopicer, ConfigurableMixin):
     span_granularity: str = ConfigurableValue(
         desc="Granularity level for span extraction", user_default="phrase")
 
     def __post_init__(self) -> None:
         self.fuzzy_matcher: FuzzyMatcher = FuzzyMatcher(max_dist_ratio=0.2)
-
+        
     def check_init(self) -> None:
         """Check if all required services are set. Raise MissingServiceError if not."""
         if self.llm_service is None:
             raise MissingServiceError(
                 "LLM service is not set for LLMTopicer.")
-        # if self.db_connection is None:
-        #     raise MissingServiceError(
-        #         "DB connection is not set for LLMTopicer.")
+        if self.db_connection is None:
+            raise MissingServiceError(
+                "DB connection is not set for LLMTopicer.")
 
     async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
 
