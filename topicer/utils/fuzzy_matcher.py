@@ -74,13 +74,21 @@ class FuzzyMatcher:
 
             # ---- TOTAL PENALTY ----
             total_penalty = match.dist + penalty_before + penalty_after
+
+            # Prepare safe context lengths and actual text snippets for logging
+            before_context_len = len(context_before) if context_before else 0
+            after_context_len = len(context_after) if context_after else 0
+
+            actual_before_text = full_text[max(0, match.start - before_context_len - 30):match.start]
+            actual_after_text = full_text[match.end:min(len(full_text), match.end + after_context_len + 30)]
+
             logger.debug(
                 f"Match at ({match.start}, {match.end}) with quote dist {match.dist}, \n"
                 f"before dist {penalty_before}, after dist {penalty_after}, total {total_penalty}\n"
                 f"Context before from LLM: '{context_before}'\n"
-                f"Actual before text: '{full_text[max(0, match.start - len(context_before) - 30):match.start]}'\n"
+                f"Actual before text: '{actual_before_text}'\n"
                 f"Context after from LLM: '{context_after}'\n"
-                f"Actual after text: '{full_text[match.end:min(len(full_text), match.end + len(context_after) + 30)]}'\n"
+                f"Actual after text: '{actual_after_text}'\n"
             )
 
             if total_penalty < min_total_penalty:
