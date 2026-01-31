@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 class FuzzyMatcher:
     def __init__(self, max_dist_ratio: float = 0.2):
         """        
-        :param max_dist_ratio: Maxiimum Levenshtein distance ratio (distance / length of quote) to still consider a match valid.
+        :param max_dist_ratio: Maximum Levenshtein distance ratio (distance / length of quote) to still consider a match valid.
         :type max_dist_ratio: float
         """
         self.max_dist_ratio = max_dist_ratio
