@@ -1,3 +1,4 @@
+from asyncio import sleep
 from topicer.base import BaseDBConnection
 from classconfig import ConfigurableMixin, ConfigurableValue
 import weaviate
@@ -6,6 +7,7 @@ from weaviate.classes.query import Filter
 from topicer.schemas import TextChunk, DBRequest
 import numpy as np
 import logging
+from rich.console import Console
 
 
 class WeaviateService(BaseDBConnection, ConfigurableMixin):
@@ -77,6 +79,8 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
 
     def __post_init__(self):
         self._client: WeaviateAsyncClient | None = None
+        self._console: Console = Console()
+        self._stack_count: int = 0
         # await self.connect() // TODO: Discuss if we want auto-connect on init, I prefer explicit connect or context manager usage.
 
     async def connect(self) -> None:
@@ -122,11 +126,12 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
             db_request.collection_id is not None
         ) else None
 
-        response = await chunks_collection.query.fetch_objects(
-            filters=chunk_filter,
-            limit=MAX_TOTAL_LIMIT,
-            return_properties=[self.chunk_text_prop],
-        )
+        with self._console.status("[bold green]Fetching text chunks from Weaviate", spinner="dots"):
+            response = await chunks_collection.query.fetch_objects(
+                filters=chunk_filter,
+                limit=MAX_TOTAL_LIMIT,
+                return_properties=[self.chunk_text_prop],
+            )
 
         for obj in response.objects:
             results.append(
@@ -160,15 +165,16 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
 
         vec = embedding.tolist()
 
-        response = await chunks_collection.query.hybrid(
-            query=text,
-            vector=vec,
-            alpha=self.hybrid_search_alpha,
-            filters=chunk_filter,
-            return_properties=[self.chunk_text_prop],
-            limit=top_k,
-            max_vector_distance=self.max_vector_distance,
-        )
+        with self._console.status("[bold green]Finding similar text chunks in Weaviate", spinner="dots"):
+            response = await chunks_collection.query.hybrid(
+                query=text,
+                vector=vec,
+                alpha=self.hybrid_search_alpha,
+                filters=chunk_filter,
+                return_properties=[self.chunk_text_prop],
+                limit=top_k,
+                max_vector_distance=self.max_vector_distance,
+            )
 
         for obj in response.objects:
             results.append(
@@ -193,11 +199,12 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         # We need to extract the UUIDs of the text chunks
         uuids = [chunk.id for chunk in text_chunks]
 
-        response = await chunks_collection.query.fetch_objects_by_ids(
-            ids=uuids,
-            include_vector=True,
-            return_properties=[],
-        )
+        with self._console.status("[bold green]Fetching embeddings from Weaviate", spinner="dots"):
+            response = await chunks_collection.query.fetch_objects_by_ids(
+                ids=uuids,
+                include_vector=True,
+                return_properties=[],
+            )
 
         vector_map = {
             obj.uuid: obj.vector.get("default")
