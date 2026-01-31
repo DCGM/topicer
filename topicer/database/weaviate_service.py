@@ -92,10 +92,9 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
             await self._client.connect()
 
     async def close(self):
-        client = getattr(self, '_client', None)
-        if client is not None:
+        if self._client is not None:
             try:
-                await client.close()
+                await self._client.close()
             except Exception:
                 logging.warning(
                     "Failed to close Weaviate client", exc_info=True)
