@@ -121,9 +121,6 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
                 db_request=db_request
             )
 
-            print(
-                f"Nalezeno {len(text_chunks)} podobných textů v DB pro tag '{tag.name}'.")
-
         if not text_chunks:
             logging.info(
                 f"No similar text chunks found for tag '{tag.name}' in the database.")
