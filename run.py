@@ -8,7 +8,7 @@ from topicer.embedding.default_service import DefaultEmbeddingService
 from topicer.database.weaviate_service import WeaviateService
 from topicer.schemas import Tag
 from uuid import uuid4
-
+from topicer.schemas import DBRequest
 
 def print_tag_proposals_with_spans(proposals: TextChunkWithTagSpanProposals):
     """Vytiskne tag proposals s vykrojeným textem podle span_start a span_end"""
@@ -47,7 +47,8 @@ async def main():
     )
     
     # proposals: TextChunkWithTagSpanProposals = await topicer.propose_tags(text_chunk, [tag1, tag2, tag3])
-    proposals = await topicer.propose_tags_in_db(tag, None)
+    db_request= DBRequest()
+    proposals = await topicer.propose_tags_in_db(tag, db_request)
     
     print(f"\nCelkem nalezeno {len(proposals)} textů s návrhy tagů v DB.\n")
 
