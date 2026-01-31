@@ -96,8 +96,13 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
             )
             await self._client.connect()
 
+        self._stack_count += 1
+
     async def close(self):
-        if self._client is not None:
+        if self._stack_count > 0:
+            self._stack_count -= 1
+        
+        if self._client is not None and self._stack_count == 0:
             try:
                 await self._client.close()
             except Exception:
