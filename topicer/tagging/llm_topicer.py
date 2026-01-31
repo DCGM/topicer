@@ -105,10 +105,7 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
             tag_span_proposals=final_proposals
         )
 
-    async def propose_tags_in_db(self, tag: Tag,  db_request: DBRequest | None) -> list[TextChunkWithTagSpanProposals]:
-        # if db_request is None:
-        #     raise ValueError(
-        #         "DB request must be provided for propose_tags_in_db in LLMTopicer.")
+    async def propose_tags_in_db(self, tag: Tag,  db_request: DBRequest) -> list[TextChunkWithTagSpanProposals]:
 
         results: list[TextChunkWithTagSpanProposals] = []
 

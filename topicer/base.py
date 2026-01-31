@@ -90,7 +90,7 @@ class BaseTopicer(ABC, ConfigurableMixin):
         """
         raise NotImplementedError("Tag proposal is not supported by this topicer.")
 
-    async def propose_tags_in_db(self, tag: Tag,  db_request: DBRequest | None) -> list[TextChunkWithTagSpanProposals]:
+    async def propose_tags_in_db(self, tag: Tag,  db_request: DBRequest) -> list[TextChunkWithTagSpanProposals]:
         """
         Propose tags for texts found in a database based on a database request and return the proposals with span indices.
         
