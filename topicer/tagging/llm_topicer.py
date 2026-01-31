@@ -3,15 +3,18 @@ from topicer.base import BaseTopicer, MissingServiceError
 from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals
 from topicer.tagging.tagging_schemas import LLMTagProposalList
 import logging
-from topicer.tagging.utils import find_exact_span
 from topicer.schemas import DBRequest
 from classconfig import ConfigurableMixin, ConfigurableValue
 from topicer.llm.openai import OpenAIService
+from topicer.utils.fuzzy_matcher import FuzzyMatcher
 
 
 class LLMTopicer(BaseTopicer, ConfigurableMixin):
     span_granularity: str = ConfigurableValue(
         desc="Granularity level for span extraction", user_default="phrase")
+
+    def __post_init__(self) -> None:
+        self.fuzzy_matcher: FuzzyMatcher = FuzzyMatcher(max_dist_ratio=0.2)
 
     def check_init(self) -> None:
         """Check if all required services are set. Raise MissingServiceError if not."""
@@ -36,7 +39,8 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
         2. Identify spans that match the definitions of the Available Tags.
         3. For each match, you MUST extract:
            - `quote`: The **EXACT** substring from the text. Copy it precisely, character for character.
-           - `context_before`: The 5-10 words immediately preceding the quote. This is crucial to locate the text if the phrase appears multiple times.
+           - `context_before`: The 5-10 words immediately preceding the quote, if available. This is crucial to locate the text if the phrase appears multiple times.
+           - `context_after`: The 5-10 words immediately following the quote, if available. This is crucial to locate the text if the phrase appears multiple times.
            - `tag`: The matching tag object.
            - `confidence`: A score between 0.0 and 1.0. Indicate how confident you are that this quote matches the tag. Try to be as accurate as possible, the confidence doesn't necessarily need to be really close to 1.0. You don't need to only return high-confidence matches; lower-confidence matches are acceptable if you believe they might be relevant. It's better to provide more options for downstream processing, but do not flood with very low-confidence matches.
            - `reason`: (optional) A brief explanation of why you selected this quote for the tag.
@@ -54,12 +58,12 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
         ### Available Tags:
         {tags_json}
         """
-        
+
         async with self.llm_service as llm_service:
             # Call LLM service to get structured tag proposals. The method expects a list of text chunks but we provide only one.
             llm_proposals_list: list[LLMTagProposalList] = await llm_service.process_text_chunks_structured(text_chunks=[input_text],
                                                                                                             instruction=instructions,
-                                                                                                        output_type=LLMTagProposalList)
+                                                                                                            output_type=LLMTagProposalList)
 
         # Extract proposals from the single response
         llm_proposals = llm_proposals_list[0].proposals
@@ -69,8 +73,12 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
         # Post-processing in Python (Calculating indices)
         for prop in llm_proposals:
             # We have quote and context_before, need to find indices in text_chunk.text
-            indices = find_exact_span(
-                text_chunk.text, prop.quote, prop.context_before)
+            indices = self.fuzzy_matcher.find_best_span(
+                full_text=text_chunk.text,
+                quote=prop.quote,
+                context_before=prop.context_before,
+                context_after=prop.context_after
+            )
 
             if indices:
                 start, end = indices
@@ -88,7 +96,9 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
             else:
                 # Logging: LLM returned text that is not found in the document
                 logging.warning(
-                    f"Could not locate quote '{prop.quote}' in text chunk {text_chunk.id}")
+                    f"Could not locate quote '{prop.quote}' in text chunk {text_chunk.id}"
+                    f" using provided context_before '{prop.context_before}' and context_after '{prop.context_after}'."
+                    )
 
         return TextChunkWithTagSpanProposals(
             id=text_chunk.id,
