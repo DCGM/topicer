@@ -208,7 +208,10 @@ http://localhost:8000/docs
 ```bash
 python -m venv venv
 source venv/bin/activate
+pip install -r requirements.txt
 pip install -r topicer_api/requirements.txt
+export PYTHONPATH=`pwd`:$PYTHONPATH
+export TOPICER_API_CONFIGS_DIR=`pwd`/deploy/data/configs
 cd topicer_api
 python run.py
 ```

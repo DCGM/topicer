@@ -14,7 +14,7 @@ class LLMTagProposal(BaseModel):
     context_before: str | None = Field(
         None, description="The 5-10 words immediately preceding the quote to help identify the location uniquely.")
     context_after: str | None = Field(
-        None, description="The 5-10 words immediately immediately following the quote if available.")
+        None, description="The 5-10 words immediately following the quote if available.")
     confidence: float
     reason: str | None = None
 
