@@ -1,4 +1,3 @@
-from asyncio import sleep
 from topicer.base import BaseDBConnection
 from classconfig import ConfigurableMixin, ConfigurableValue
 import weaviate

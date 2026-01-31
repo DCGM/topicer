@@ -4,8 +4,6 @@ import logging
 from tests.test_data import tag1, tag2, tag3, text_chunk
 from topicer.schemas import TextChunkWithTagSpanProposals
 from topicer.base import factory
-from topicer.embedding.default_service import DefaultEmbeddingService
-from topicer.database.weaviate_service import WeaviateService
 from topicer.schemas import Tag
 from uuid import uuid4
 from topicer.schemas import DBRequest
@@ -31,8 +29,6 @@ def print_tag_proposals_with_spans(proposals: TextChunkWithTagSpanProposals):
 
 
 async def main():
-    # načtení API klíče
-    load_dotenv()
 
     # # Factory načte API klíč automaticky z prostředí
     topicer = factory("config.yaml")
@@ -48,11 +44,11 @@ async def main():
     
     # proposals: TextChunkWithTagSpanProposals = await topicer.propose_tags(text_chunk, [tag1, tag2, tag3])
     db_request= DBRequest()
-    proposals = await topicer.propose_tags_in_db(tag, db_request)
+    proposals_list = await topicer.propose_tags_in_db(tag, db_request)
     
-    print(f"\nCelkem nalezeno {len(proposals)} textů s návrhy tagů v DB.\n")
+    print(f"\nCelkem nalezeno {len(proposals_list)} textů s návrhy tagů v DB.\n")
 
-    for proposals in proposals:
+    for proposals in proposals_list:
         print_tag_proposals_with_spans(proposals)
         
 
