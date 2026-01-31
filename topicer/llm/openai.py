@@ -4,7 +4,6 @@ from pydantic import BaseModel
 import asyncio
 
 from rich.console import Console
-from rich.status import Status
 
 from topicer.base import BaseLLMService
 
