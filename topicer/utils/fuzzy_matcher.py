@@ -101,7 +101,7 @@ class FuzzyMatcher:
             if context_before:
                 norm_context_before = self._normalize_text(context_before)
                 # window length
-                window_len = len(norm_context_before) + WINDOW_BUFFER
+                window_len = len(context_before) + WINDOW_BUFFER
 
                 search_start = max(0, match.start - window_len)
                 window_before = full_text[search_start:match.start]
@@ -123,7 +123,7 @@ class FuzzyMatcher:
             if context_after:
                 norm_context_after = self._normalize_text(context_after)
                 # window length
-                window_len = len(norm_context_after) + WINDOW_BUFFER
+                window_len = len(context_after) + WINDOW_BUFFER
 
                 search_end = min(len(full_text), match.end + window_len)
                 window_after = full_text[match.end:search_end]
