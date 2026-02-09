@@ -26,6 +26,7 @@ ssh_command = [
     '-v',
     tunnel_1_arg,
     tunnel_2_arg,
+    tunnel_3_arg,
     f"{user}@{server}"
 ]
 
