@@ -45,9 +45,9 @@ def test_find_best_span_with_typo_within_distance(matcher):
 
 def test_find_best_span_with_typo_exceeding_distance(matcher):
     full_text = "The quick brown panther jumps over the lazy dog."
-    # 3 typos from "brown panther", which exceeds max_dist_ratio (3/13 ~ 0.23 > 0.2)
+    # 3 typos from "brown panther", which exceeds max_dist_ratio (3/12 ~ 0.25 > 0.2)
     quote = "brawn pamter"
-    # Length 13 * 0.2 = 2.6 -> allowed distance 2. Should fail and return None.
+    # Length 12 * 0.2 = 2.4 -> allowed distance 2. Should fail and return None.
     span = matcher.find_best_span(full_text, quote)
     assert span is None
 
