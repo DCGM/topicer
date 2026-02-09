@@ -21,7 +21,7 @@ class FuzzyMatcher:
 
         return re.sub(r'\s+', ' ', text).strip()
 
-    def _get_best_dist(self, target: str, window: str, anchor: str = "start") -> int | None:
+    def _get_best_dist(self, target: str, window: str, anchor: Literal["start", "end"] = "start") -> int | None:
         """Compute a positional matching score between ``target`` and ``window``.
 
         The score for a match is defined as the Levenshtein edit distance between
