@@ -70,10 +70,11 @@ class FuzzyMatcher:
                 # For context_before: How many characters left from the end of the match to the start of the quote
                 gap_penalty = len(norm_window) - m.end
 
-            scores.append(edit_dist + gap_penalty)
-
-        return min(scores) if scores else None
-
+            elif anchor == "end":
+                # For context_before: How many characters left from the end of the match to the start of the quote
+                gap_penalty = len(norm_window) - m.end
+            else:
+                raise ValueError(f"Invalid anchor value {anchor!r}; expected 'start' or 'end'.")
     def find_best_span(self, full_text: str, quote: str, context_before: str | None = None, context_after: str | None = None) -> tuple[int, int] | None:
         if not quote:
             return None
