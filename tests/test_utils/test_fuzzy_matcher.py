@@ -45,7 +45,8 @@ def test_find_best_span_with_typo_within_distance(matcher):
     # Length 13 * 0.2 = 2.6 -> allowed distance 2. Should pass.
     span = matcher.find_best_span(full_text, quote)
     assert span == (10, 23)
-    
+
+
 def test_find_best_span_with_typo_exceeding_distance(matcher):
     full_text = "The quick brown panther jumps over the lazy dog."
     # 3 typos from "brown panther", which exceeds max_dist_ratio (3/13 ~ 0.23 > 0.2)
@@ -73,14 +74,16 @@ def test_find_best_span_with_context(matcher):
     span = matcher.find_best_span(full_text, quote, context_before="A car is")
     assert span == (26, 29)
 
-def test_find_best_span_empty_inputs( matcher):
-        assert matcher.find_best_span("", "something") is None
-        assert matcher.find_best_span("something", "") is None
-        
+
+def test_find_best_span_empty_inputs(matcher):
+    assert matcher.find_best_span("", "something") is None
+    assert matcher.find_best_span("something", "") is None
+
+
 def test_context_penalty_fallback(matcher):
-        # Test the situation where the context does not match at all (high penalty)
-        full_text = "Hello world."
-        quote = "world"
-        # Context 'X Y Z' is not in the text, a fallback penalty should be calculated
-        span = matcher.find_best_span(full_text, quote, context_before="X Y Z")
-        assert span == (6, 11) # It should still find at least the quote
+    # Test the situation where the context does not match at all (high penalty)
+    full_text = "Hello world."
+    quote = "world"
+    # Context 'X Y Z' is not in the text, a fallback penalty should be calculated
+    span = matcher.find_best_span(full_text, quote, context_before="X Y Z")
+    assert span == (6, 11)  # It should still find at least the quote
