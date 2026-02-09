@@ -50,7 +50,7 @@ class FuzzyMatcher:
 
             else:
                 # For context_before: How many characters left from the end of the match to the start of the quote
-                gap_penalty = abs(len(norm_window) - m.end)
+                gap_penalty = len(norm_window) - m.end
 
             scores.append(edit_dist + gap_penalty)
 
