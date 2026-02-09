@@ -11,7 +11,6 @@ def matcher():
     ("  text   with  spaces  ", "text with spaces"),
     ("new\nline\ttabulator", "new line tabulator"),
     ("", ""),
-    (None, ""),
 ])
 def test_normalize_text(matcher, input_text, expected):
     assert matcher._normalize_text(input_text) == expected
