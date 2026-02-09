@@ -91,30 +91,52 @@ class FuzzyMatcher:
         best_match_coords = None
         min_total_penalty = float('inf')
 
+        # Extra buffer for searching context in window
+        WINDOW_BUFFER = 30
+
         # We analyze before and after contexts for each match to find the best one
         for match in matches:
             # ---- BEFORE CONTEXT ----
             penalty_before = 0
             if context_before:
-                search_start = max(0, match.start - len(context_before) - 30)
+                norm_context_before = self._normalize_text(context_before)
+                # window length
+                window_len = len(norm_context_before) + WINDOW_BUFFER
+
+                search_start = max(0, match.start - window_len)
                 window_before = full_text[search_start:match.start]
                 dist_before = self._get_best_dist(
                     context_before, window_before, anchor="end")
 
-                penalty_before = dist_before if dist_before is not None else (
-                    int(len(self._normalize_text(context_before)) * self.max_dist_ratio) + 1)
+                if dist_before is not None:
+                    penalty_before = dist_before
+                else:
+                    # FALLBACK: Must be at least the max possible edit distance + gap penalty if no match is found
+                    # Theoretical maximum in _get_best_dist is (max_edit_dist + len(window_before))
+                    max_possible_edit_dist = int(
+                        len(norm_context_before) * self.max_dist_ratio)
+                    penalty_before = max_possible_edit_dist + \
+                        len(self._normalize_text(window_before)) + 1
 
             # ---- AFTER CONTEXT ----
             penalty_after = 0
             if context_after:
-                search_end = min(len(full_text), match.end +
-                                 len(context_after) + 30)
+                norm_context_after = self._normalize_text(context_after)
+                # window length
+                window_len = len(norm_context_after) + WINDOW_BUFFER
+
+                search_end = min(len(full_text), match.end + window_len)
                 window_after = full_text[match.end:search_end]
                 dist_after = self._get_best_dist(
                     context_after, window_after, anchor="start")
 
-                penalty_after = dist_after if dist_after is not None else (
-                    int(len(self._normalize_text(context_after)) * self.max_dist_ratio) + 1)
+                if dist_after is not None:
+                    penalty_after = dist_after
+                else:
+                    max_possible_edit_dist = int(
+                        len(norm_context_after) * self.max_dist_ratio)
+                    penalty_after = max_possible_edit_dist + \
+                        len(self._normalize_text(window_after)) + 1
 
             # ---- TOTAL PENALTY ----
             total_penalty = match.dist + penalty_before + penalty_after
