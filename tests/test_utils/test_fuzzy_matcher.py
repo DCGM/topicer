@@ -34,7 +34,7 @@ def test_get_best_dist_too_different(matcher):
 def test_find_best_span_exact_match(matcher):
     full_text = "The quick brown fox jumps over the lazy dog."
     quote = "brown fox"
-    # 'brown fox' starts at index 10 and ends at index 19
+    # 'brown fox' starts at index 10 and covers characters up to (but not including) index 19, i.e. span [10, 19)
     assert matcher.find_best_span(full_text, quote) == (10, 19)
 
 
