@@ -1,13 +1,14 @@
 from fuzzysearch import find_near_matches
 import re
 import logging
+from typing import Literal
 
 logger = logging.getLogger(__name__)
 
 
 class FuzzyMatcher:
     def __init__(self, max_dist_ratio: float = 0.2):
-        """        
+        """
         :param max_dist_ratio: Maximum Levenshtein distance ratio (distance / length of quote) to still consider a match valid.
         :type max_dist_ratio: float
         """
@@ -20,8 +21,27 @@ class FuzzyMatcher:
 
         return re.sub(r'\s+', ' ', text).strip()
 
-    def _get_best_dist(self, target: str, window: str) -> int | None:
-        """ Get the best Levenshtein distance between target and window using fuzzysearch """
+    def _get_best_context_score(self, target: str, window: str, anchor: Literal["start", "end"] = "start") -> int | None:
+        """Compute a positional matching score between ``target`` and ``window``.
+
+        The score for a match is defined as the Levenshtein edit distance between
+        ``target`` and the matched substring in ``window`` plus an additional gap
+        penalty based on the position of the match relative to the given ``anchor``.
+
+        This is used to better evaluate the ``context_before`` and ``context_after``
+        provided by the LLM:
+
+        * If ``anchor`` is ``"start"``, we expect the match to be towards the
+          beginning of the window (used for ``context_after``), so earlier matches
+          incur a smaller gap penalty.
+        * If ``anchor`` is ``"end"``, we expect the match to be towards the end of
+          the window (used for ``context_before``), so later matches incur a
+          smaller gap penalty.
+
+        The returned value is the minimum such score (lower is better) over all
+        matches found within the allowed distance ratio, or ``None`` if no match
+        satisfies that constraint.
+        """
         # If the target is empty, distance/penalty is 0
         if not target:
             return 0
@@ -32,7 +52,29 @@ class FuzzyMatcher:
         max_dist = int(len(norm_target) * self.max_dist_ratio)
         matches = find_near_matches(
             norm_target, norm_window, max_l_dist=max_dist)
-        return min((m.dist for m in matches), default=None)
+
+        if not matches:
+            return None
+
+        scores = []
+
+        for m in matches:
+            # Base penalty is the edit distance
+            edit_dist = m.dist
+
+            if anchor == "start":
+                # For context_after: How many characters from the end of the quote to the start of the match
+                gap_penalty = m.start
+            elif anchor == "end":
+                # For context_before: How many characters left from the end of the match to the start of the quote
+                gap_penalty = len(norm_window) - m.end
+            else:
+                raise ValueError(
+                    f"Invalid anchor value {anchor!r}; expected 'start' or 'end'.")
+
+            scores.append(edit_dist + gap_penalty)
+
+        return min(scores) if scores else None
 
     def find_best_span(self, full_text: str, quote: str, context_before: str | None = None, context_after: str | None = None) -> tuple[int, int] | None:
         if not quote:
@@ -49,29 +91,52 @@ class FuzzyMatcher:
         best_match_coords = None
         min_total_penalty = float('inf')
 
+        # Extra buffer for searching context in window
+        WINDOW_BUFFER = 30
+
         # We analyze before and after contexts for each match to find the best one
         for match in matches:
             # ---- BEFORE CONTEXT ----
             penalty_before = 0
             if context_before:
-                search_start = max(0, match.start - len(context_before) - 30)
-                window_before = full_text[search_start:match.start]
-                dist_before = self._get_best_dist(
-                    context_before, window_before)
+                norm_context_before = self._normalize_text(context_before)
+                # window length
+                window_len = len(context_before) + WINDOW_BUFFER
 
-                penalty_before = dist_before if dist_before is not None else (
-                    int(len(self._normalize_text(context_before)) * self.max_dist_ratio) + 1)
+                search_start = max(0, match.start - window_len)
+                window_before = full_text[search_start:match.start]
+                dist_before = self._get_best_context_score(
+                    context_before, window_before, anchor="end")
+
+                if dist_before is not None:
+                    penalty_before = dist_before
+                else:
+                    # FALLBACK: Must be at least the max possible edit distance + gap penalty if no match is found
+                    # Theoretical maximum in _get_best_context_score is (max_edit_dist + len(window_before))
+                    max_possible_edit_dist = int(
+                        len(norm_context_before) * self.max_dist_ratio)
+                    penalty_before = max_possible_edit_dist + \
+                        len(self._normalize_text(window_before)) + 1
 
             # ---- AFTER CONTEXT ----
             penalty_after = 0
             if context_after:
-                search_end = min(len(full_text), match.end +
-                                 len(context_after) + 30)
-                window_after = full_text[match.end:search_end]
-                dist_after = self._get_best_dist(context_after, window_after)
+                norm_context_after = self._normalize_text(context_after)
+                # window length
+                window_len = len(context_after) + WINDOW_BUFFER
 
-                penalty_after = dist_after if dist_after is not None else (
-                    int(len(self._normalize_text(context_after)) * self.max_dist_ratio) + 1)
+                search_end = min(len(full_text), match.end + window_len)
+                window_after = full_text[match.end:search_end]
+                dist_after = self._get_best_context_score(
+                    context_after, window_after, anchor="start")
+
+                if dist_after is not None:
+                    penalty_after = dist_after
+                else:
+                    max_possible_edit_dist = int(
+                        len(norm_context_after) * self.max_dist_ratio)
+                    penalty_after = max_possible_edit_dist + \
+                        len(self._normalize_text(window_after)) + 1
 
             # ---- TOTAL PENALTY ----
             total_penalty = match.dist + penalty_before + penalty_after
@@ -100,6 +165,5 @@ class FuzzyMatcher:
             if total_penalty < min_total_penalty:
                 min_total_penalty = total_penalty
                 best_match_coords = (match.start, match.end)
-
 
         return best_match_coords
