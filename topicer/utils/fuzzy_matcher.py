@@ -21,7 +21,25 @@ class FuzzyMatcher:
         return re.sub(r'\s+', ' ', text).strip()
 
     def _get_best_dist(self, target: str, window: str, anchor: str = "start") -> int | None:
-        """ Get the best Levenshtein distance between target and window using fuzzysearch and applying an additional gap penalty based on the position of the match relative to the anchor. This is used to better evaluate the context_before and context_after provided by the LLM. If anchor is "start", we expect the match to be towards the beginning of the window (used for context_after). If anchor is "end", we expect the match to be towards the end of the window (used for context_before). The gap penalty helps prefer matches that are closer to the expected position in the window. Returns None if no match is within the allowed distance ratio.
+        """Compute a positional matching score between ``target`` and ``window``.
+
+        The score for a match is defined as the Levenshtein edit distance between
+        ``target`` and the matched substring in ``window`` plus an additional gap
+        penalty based on the position of the match relative to the given ``anchor``.
+
+        This is used to better evaluate the ``context_before`` and ``context_after``
+        provided by the LLM:
+
+        * If ``anchor`` is ``"start"``, we expect the match to be towards the
+          beginning of the window (used for ``context_after``), so earlier matches
+          incur a smaller gap penalty.
+        * If ``anchor`` is ``"end"``, we expect the match to be towards the end of
+          the window (used for ``context_before``), so later matches incur a
+          smaller gap penalty.
+
+        The returned value is the minimum such score (lower is better) over all
+        matches found within the allowed distance ratio, or ``None`` if no match
+        satisfies that constraint.
         """
         # If the target is empty, distance/penalty is 0
         if not target:
