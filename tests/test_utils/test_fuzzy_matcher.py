@@ -107,3 +107,21 @@ def test_context_penalty_fallback(matcher):
     # Context 'X Y Z' is not in the text, a fallback penalty should be calculated
     span = matcher.find_best_span(full_text, quote, context_before="X Y Z")
     assert span == (6, 11)  # It should still find at least the quote
+
+
+def test_get_best_dist_positional_preference(matcher):
+    # Window contains hello twice
+    window = "hello ... hello"
+
+    # For context_after (anchor='start') we want the first 'hello' (index 0)
+    # The penalty should be 0 (dist 0 + gap 0)
+    assert matcher._get_best_dist("hello", window, anchor="start") == 0
+
+    # For context_before (anchor='end') we want the second 'hello' (at the very end)
+    # The penalty should be 0 (dist 0 + gap 0)
+    # If it took the first one, the penalty would be around 10+
+    assert matcher._get_best_dist("hello", window, anchor="end") == 0
+
+def test_get_best_dist_gap_calculation(matcher):
+    # Test that the penalty increases with the gap
+    assert matcher._get_best_dist("man", "hello man", anchor="start") == 6
