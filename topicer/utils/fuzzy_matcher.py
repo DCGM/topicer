@@ -20,8 +20,9 @@ class FuzzyMatcher:
 
         return re.sub(r'\s+', ' ', text).strip()
 
-    def _get_best_dist(self, target: str, window: str) -> int | None:
-        """ Get the best Levenshtein distance between target and window using fuzzysearch """
+    def _get_best_dist(self, target: str, window: str, anchor: str = "start") -> int | None:
+        """ Get the best Levenshtein distance between target and window using fuzzysearch and applying an additional gap penalty based on the position of the match relative to the anchor. This is used to better evaluate the context_before and context_after provided by the LLM. If anchor is "start", we expect the match to be towards the beginning of the window (used for context_after). If anchor is "end", we expect the match to be towards the end of the window (used for context_before). The gap penalty helps prefer matches that are closer to the expected position in the window. Returns None if no match is within the allowed distance ratio.
+        """
         # If the target is empty, distance/penalty is 0
         if not target:
             return 0
@@ -32,7 +33,27 @@ class FuzzyMatcher:
         max_dist = int(len(norm_target) * self.max_dist_ratio)
         matches = find_near_matches(
             norm_target, norm_window, max_l_dist=max_dist)
-        return min((m.dist for m in matches), default=None)
+
+        if not matches:
+            return None
+
+        scores = []
+
+        for m in matches:
+            # Base penalty is the edit distance
+            edit_dist = m.dist
+
+            if anchor == "start":
+                # For context_after: How many characters from the end of the quote to the start of the match
+                gap_penalty = m.start
+
+            else:
+                # For context_before: How many characters left from the end of the match to the start of the quote
+                gap_penalty = abs(len(norm_window) - m.end)
+
+            scores.append(edit_dist + gap_penalty)
+
+        return min(scores) if scores else None
 
     def find_best_span(self, full_text: str, quote: str, context_before: str | None = None, context_after: str | None = None) -> tuple[int, int] | None:
         if not quote:
@@ -57,7 +78,7 @@ class FuzzyMatcher:
                 search_start = max(0, match.start - len(context_before) - 30)
                 window_before = full_text[search_start:match.start]
                 dist_before = self._get_best_dist(
-                    context_before, window_before)
+                    context_before, window_before, anchor="end")
 
                 penalty_before = dist_before if dist_before is not None else (
                     int(len(self._normalize_text(context_before)) * self.max_dist_ratio) + 1)
@@ -68,7 +89,8 @@ class FuzzyMatcher:
                 search_end = min(len(full_text), match.end +
                                  len(context_after) + 30)
                 window_after = full_text[match.end:search_end]
-                dist_after = self._get_best_dist(context_after, window_after)
+                dist_after = self._get_best_dist(
+                    context_after, window_after, anchor="start")
 
                 penalty_after = dist_after if dist_after is not None else (
                     int(len(self._normalize_text(context_after)) * self.max_dist_ratio) + 1)
@@ -100,6 +122,5 @@ class FuzzyMatcher:
             if total_penalty < min_total_penalty:
                 min_total_penalty = total_penalty
                 best_match_coords = (match.start, match.end)
-
 
         return best_match_coords

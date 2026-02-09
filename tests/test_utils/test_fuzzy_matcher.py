@@ -18,12 +18,15 @@ def test_normalize_text(matcher, input_text, expected):
 
 
 def test_get_best_dist_exact(matcher):
-    assert matcher._get_best_dist("hello", "here is hello world") == 0
+    assert matcher._get_best_dist("hello", "hello world") == 0
 
 
 def test_get_best_dist_fuzzy(matcher):
-    # 'hello' vs 'hallo' -> distance 1
-    assert matcher._get_best_dist("hello", "here is hallo world") == 1
+    assert matcher._get_best_dist("hello", "hallo world") == 1
+
+
+def test_get_best_dist_with_anchor_end(matcher):
+    assert matcher._get_best_dist("hello", "world hello", anchor="end") == 0
 
 
 def test_get_best_dist_too_different(matcher):
@@ -62,7 +65,7 @@ def test_find_best_span_no_match(matcher):
     assert matcher.find_best_span(full_text, quote) is None
 
 
-def test_find_best_span_with_context(matcher):
+def test_find_best_span_with_context_before(matcher):
     # We have two same quotes, but different contexts. We want to find the one with matching context.
     full_text = "An apple is red. A car is red and fast."
     quote = "red"
@@ -73,6 +76,24 @@ def test_find_best_span_with_context(matcher):
     # With context before ("A car is") it should find the second one
     span = matcher.find_best_span(full_text, quote, context_before="A car is")
     assert span == (26, 29)
+
+
+def test_find_best_span_with_context_after(matcher):
+    # We have two same quotes, but different after contexts. We want to find the one with matching context.
+    full_text = "Today is sunny and nice. Today is sunny and the sun is shining."
+    quote = "Today is sunny"
+
+    # Without context, it would take the first occurrence (index 0)
+    assert matcher.find_best_span(full_text, quote) == (0, 14)
+
+    # With after context ("and the sun is shining") it should find the second occurrence
+    span = matcher.find_best_span(
+        full_text,
+        quote,
+        context_after="and the sun is shining"
+    )
+    # The second occurrence starts at index 25
+    assert span == (25, 39)
 
 
 def test_find_best_span_empty_inputs(matcher):
