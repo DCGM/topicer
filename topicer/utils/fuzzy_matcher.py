@@ -1,6 +1,7 @@
 from fuzzysearch import find_near_matches
 import re
 import logging
+from typing import Literal
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class FuzzyMatcher:
 
         return re.sub(r'\s+', ' ', text).strip()
 
-    def _get_best_dist(self, target: str, window: str, anchor: str = "start") -> int | None:
+    def _get_best_dist(self, target: str, window: str, anchor: Literal["start", "end"] = "start") -> int | None:
         """ Get the best Levenshtein distance between target and window using fuzzysearch and applying an additional gap penalty based on the position of the match relative to the anchor. This is used to better evaluate the context_before and context_after provided by the LLM. If anchor is "start", we expect the match to be towards the beginning of the window (used for context_after). If anchor is "end", we expect the match to be towards the end of the window (used for context_before). The gap penalty helps prefer matches that are closer to the expected position in the window. Returns None if no match is within the allowed distance ratio.
         """
         # If the target is empty, distance/penalty is 0
