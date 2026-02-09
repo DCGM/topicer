@@ -122,6 +122,12 @@ def test_get_best_dist_positional_preference(matcher):
     # If it took the first one, the penalty would be around 10+
     assert matcher._get_best_dist("hello", window, anchor="end") == 0
 
+
 def test_get_best_dist_gap_calculation(matcher):
     # Test that the penalty increases with the gap
     assert matcher._get_best_dist("man", "hello man", anchor="start") == 6
+
+
+def test_get_best_dist_invalid_anchor(matcher):
+    with pytest.raises(ValueError, match="Invalid anchor value 'middle'"):
+        matcher._get_best_dist("hello", "hello world", anchor="middle")
