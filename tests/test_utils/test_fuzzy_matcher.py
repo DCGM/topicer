@@ -10,21 +10,21 @@ def test_normalize_text(matcher, input_text, expected):
     assert matcher._normalize_text(input_text) == expected
 
 
-def test_get_best_dist_exact(matcher):
-    assert matcher._get_best_dist("hello", "hello world") == 0
+def test_get_best_context_score_exact(matcher):
+    assert matcher._get_best_context_score("hello", "hello world") == 0
 
 
-def test_get_best_dist_fuzzy(matcher):
-    assert matcher._get_best_dist("hello", "hallo world") == 1
+def test_get_best_context_score_fuzzy(matcher):
+    assert matcher._get_best_context_score("hello", "hallo world") == 1
 
 
-def test_get_best_dist_with_anchor_end(matcher):
-    assert matcher._get_best_dist("hello", "world hello", anchor="end") == 0
+def test_get_best_context_score_with_anchor_end(matcher):
+    assert matcher._get_best_context_score("hello", "world hello", anchor="end") == 0
 
 
-def test_get_best_dist_too_different(matcher):
+def test_get_best_context_score_too_different(matcher):
     # 'superman' vs 'hello' -> over max_dist_ratio (0.2 * 8 = 1.6 -> max dist 1)
-    assert matcher._get_best_dist("superman", "hello") is None
+    assert matcher._get_best_context_score("superman", "hello") is None
 
 
 def test_find_best_span_exact_match(matcher):
@@ -103,25 +103,25 @@ def test_context_penalty_fallback(matcher):
     assert span == (6, 11)  # It should still find at least the quote
 
 
-def test_get_best_dist_positional_preference(matcher):
+def test_get_best_context_score_positional_preference(matcher):
     # Window contains hello twice
     window = "hello ... hello"
 
     # For context_after (anchor='start') we want the first 'hello' (index 0)
     # The penalty should be 0 (dist 0 + gap 0)
-    assert matcher._get_best_dist("hello", window, anchor="start") == 0
+    assert matcher._get_best_context_score("hello", window, anchor="start") == 0
 
     # For context_before (anchor='end') we want the second 'hello' (at the very end)
     # The penalty should be 0 (dist 0 + gap 0)
     # If it took the first one, the penalty would be around 10+
-    assert matcher._get_best_dist("hello", window, anchor="end") == 0
+    assert matcher._get_best_context_score("hello", window, anchor="end") == 0
 
 
-def test_get_best_dist_gap_calculation(matcher):
+def test_get_best_context_score_gap_calculation(matcher):
     # Test that the penalty increases with the gap
-    assert matcher._get_best_dist("man", "hello man", anchor="start") == 6
+    assert matcher._get_best_context_score("man", "hello man", anchor="start") == 6
 
 
-def test_get_best_dist_invalid_anchor(matcher):
+def test_get_best_context_score_invalid_anchor(matcher):
     with pytest.raises(ValueError, match="Invalid anchor value 'middle'"):
-        matcher._get_best_dist("hello", "hello world", anchor="middle")
+        matcher._get_best_context_score("hello", "hello world", anchor="middle")
