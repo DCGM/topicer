@@ -21,7 +21,7 @@ class FuzzyMatcher:
 
         return re.sub(r'\s+', ' ', text).strip()
 
-    def _get_best_dist(self, target: str, window: str, anchor: Literal["start", "end"] = "start") -> int | None:
+    def _get_best_context_score(self, target: str, window: str, anchor: Literal["start", "end"] = "start") -> int | None:
         """Compute a positional matching score between ``target`` and ``window``.
 
         The score for a match is defined as the Levenshtein edit distance between
@@ -105,14 +105,14 @@ class FuzzyMatcher:
 
                 search_start = max(0, match.start - window_len)
                 window_before = full_text[search_start:match.start]
-                dist_before = self._get_best_dist(
+                dist_before = self._get_best_context_score(
                     context_before, window_before, anchor="end")
 
                 if dist_before is not None:
                     penalty_before = dist_before
                 else:
                     # FALLBACK: Must be at least the max possible edit distance + gap penalty if no match is found
-                    # Theoretical maximum in _get_best_dist is (max_edit_dist + len(window_before))
+                    # Theoretical maximum in _get_best_context_score is (max_edit_dist + len(window_before))
                     max_possible_edit_dist = int(
                         len(norm_context_before) * self.max_dist_ratio)
                     penalty_before = max_possible_edit_dist + \
@@ -127,7 +127,7 @@ class FuzzyMatcher:
 
                 search_end = min(len(full_text), match.end + window_len)
                 window_after = full_text[match.end:search_end]
-                dist_after = self._get_best_dist(
+                dist_after = self._get_best_context_score(
                     context_after, window_after, anchor="start")
 
                 if dist_after is not None:
