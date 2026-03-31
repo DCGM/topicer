@@ -311,7 +311,7 @@ Popis tématu:"""),
         if self.db_connection is None:
             raise MissingServiceError("DB connection has to be set for DB topic discovery.")
 
-        texts = self.db_connection.get_text_chunks(db_request)
+        texts = await self.db_connection.get_text_chunks(db_request)
         embedder = None
         if db_embeddings or (db_embeddings is None and self.use_db_embeddings):
             embeddings = self.db_connection.get_embeddings(texts)
