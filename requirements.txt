@@ -20,4 +20,5 @@ json-repair~=0.54.2
 numpy~=2.3.5
 pytest-asyncio
 weaviate-client
-
+fuzzysearch~=0.8.1
+rich~=14.3.3
