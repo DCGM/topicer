@@ -3,6 +3,7 @@ import logging
 from fastapi import Request
 
 from topicer import factory as topicer_factory
+from topicer.base import BaseTopicer
 
 from topicer_api.config import config as app_config
 
@@ -10,7 +11,7 @@ from topicer_api.config import config as app_config
 logger = logging.getLogger(__name__)
 
 
-class LoadedTopicers(dict):
+class LoadedTopicers(dict[str, BaseTopicer]):
     pass
 
 
