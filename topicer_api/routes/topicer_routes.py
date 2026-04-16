@@ -3,8 +3,8 @@ from typing import Sequence
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.responses import RedirectResponse
 
-from topicer.schemas import DBRequest, Tag, TextChunk
-
+from topicer.schemas import (DBRequest, DiscoveredTopics, DiscoveredTopicsSparse, Tag, TextChunk,
+                             TextChunkWithTagSpanProposals)
 from topicer_api.topicers import LoadedTopicers, get_loaded_topicers
 
 
@@ -18,13 +18,13 @@ async def root():
 
 
 @topicer_router.get("/configs", summary="List available Topicer configurations.")
-async def get_configs(loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)):
+async def get_configs(loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)) -> list[str]:
     configs = list(loaded_topicers.keys())
     return configs
 
 
 @topicer_router.post("/topics/discover/texts/sparse", summary="Discover topics in provided texts using sparse approach.")
-async def discover_topics_sparse(config_name: str, texts: Sequence[TextChunk], n: int | None = None, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)):
+async def discover_topics_sparse(config_name: str, texts: Sequence[TextChunk], n: int | None = None, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)) -> DiscoveredTopicsSparse:
     if config_name not in loaded_topicers:
         logger.warning(f"Config {config_name} not found among loaded topicers: {list(loaded_topicers.keys())}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
@@ -43,7 +43,7 @@ async def discover_topics_sparse(config_name: str, texts: Sequence[TextChunk], n
 
 
 @topicer_router.post("/topics/discover/texts/dense", summary="Discover topics in provided texts using dense approach.")
-async def discover_topics_dense(config_name: str, texts: Sequence[TextChunk], n: int | None = None, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)):
+async def discover_topics_dense(config_name: str, texts: Sequence[TextChunk], n: int | None = None, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)) -> DiscoveredTopics:
     if config_name not in loaded_topicers:
         logger.warning(f"Config {config_name} not found among loaded topicers: {list(loaded_topicers.keys())}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
@@ -62,7 +62,7 @@ async def discover_topics_dense(config_name: str, texts: Sequence[TextChunk], n:
 
 
 @topicer_router.post("/topics/discover/db/sparse", summary="Discover topics in texts stored in database using sparse approach.")
-async def discover_topics_in_db_sparse(config_name: str, db_request: DBRequest, n: int | None = None, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)):
+async def discover_topics_in_db_sparse(config_name: str, db_request: DBRequest, n: int | None = None, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)) -> DiscoveredTopicsSparse:
     if config_name not in loaded_topicers:
         logger.warning(f"Config {config_name} not found among loaded topicers: {list(loaded_topicers.keys())}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
@@ -81,7 +81,7 @@ async def discover_topics_in_db_sparse(config_name: str, db_request: DBRequest, 
 
 
 @topicer_router.post("/topics/discover/db/dense", summary="Discover topics in texts stored in database using dense approach.")
-async def discover_topics_in_db_dense(config_name: str, db_request: DBRequest, n: int | None = None, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)):
+async def discover_topics_in_db_dense(config_name: str, db_request: DBRequest, n: int | None = None, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)) -> DiscoveredTopics:
     if config_name not in loaded_topicers:
         logger.warning(f"Config {config_name} not found among loaded topicers: {list(loaded_topicers.keys())}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
@@ -100,7 +100,7 @@ async def discover_topics_in_db_dense(config_name: str, db_request: DBRequest, n
 
 
 @topicer_router.post("/tags/propose/texts", summary="Propose tags on provided text chunk.")
-async def propose_tags(config_name: str, text_chunk: TextChunk, tags: list[Tag], loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)):
+async def propose_tags(config_name: str, text_chunk: TextChunk, tags: list[Tag], loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)) -> TextChunkWithTagSpanProposals:
     if config_name not in loaded_topicers:
         logger.warning(f"Config {config_name} not found among loaded topicers: {list(loaded_topicers.keys())}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
@@ -119,7 +119,7 @@ async def propose_tags(config_name: str, text_chunk: TextChunk, tags: list[Tag],
 
 
 @topicer_router.post("/tags/propose/db", summary="Propose tags on texts stored in database.")
-async def propose_tags_in_db(config_name: str, tag: Tag, db_request: DBRequest, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)):
+async def propose_tags_in_db(config_name: str, tag: Tag, db_request: DBRequest, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)) -> list[TextChunkWithTagSpanProposals]:
     if config_name not in loaded_topicers:
         logger.warning(f"Config {config_name} not found among loaded topicers: {list(loaded_topicers.keys())}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
