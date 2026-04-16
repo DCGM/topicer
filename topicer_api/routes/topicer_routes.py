@@ -1,4 +1,3 @@
-import os
 import logging
 from typing import Sequence
 from fastapi import APIRouter, HTTPException, status, Depends
