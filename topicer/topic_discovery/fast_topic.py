@@ -314,7 +314,7 @@ Popis tématu:"""),
         texts = await self.db_connection.get_text_chunks(db_request)
         embedder = None
         if db_embeddings or (db_embeddings is None and self.use_db_embeddings):
-            embeddings = self.db_connection.get_embeddings(texts)
+            embeddings = await self.db_connection.get_embeddings(texts)
             embedder = PrecomputedEmbeddings(embeddings=embeddings)
 
         texts = self.truncate_texts(texts, self.max_char_length)
