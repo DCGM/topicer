@@ -123,7 +123,6 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
             self.chunks_collection)
 
         results: list[TextChunk] = []
-        MAX_TOTAL_LIMIT = max(100000, self.chunks_limit)
 
         # Definition of the filter using reference property
         chunk_filter = Filter.by_ref(self.chunk_user_collection_ref).by_id().equal(db_request.collection_id) if (
@@ -133,7 +132,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         with self._console.status("[bold green]Fetching text chunks from Weaviate", spinner="dots"):
             response = await chunks_collection.query.fetch_objects(
                 filters=chunk_filter,
-                limit=MAX_TOTAL_LIMIT,
+                limit=self.chunks_limit,
                 return_properties=[self.chunk_text_prop],
             )
 

@@ -2,9 +2,10 @@ import uuid
 
 import pytest
 import requests
-import weaviate.classes.config as wvcc
+
 from urllib.parse import urljoin
 
+from tests.test_api.conftest import create_test_collection_id, ensure_test_collections, clean_test_database
 from topicer.schemas import TextChunk
 
 
@@ -18,25 +19,6 @@ def _assert_common_topic_response(result: dict, expected_topics: int = 2) -> Non
     )
 
 
-async def _ensure_test_collections(database_connection) -> None:
-    user_collection = database_connection.client.collections.use(database_connection.chunk_user_collection_ref)
-    if not await user_collection.exists():
-        await database_connection.client.collections.create(name=database_connection.chunk_user_collection_ref)
-
-    chunks_collection = database_connection.client.collections.use(database_connection.chunks_collection)
-    if not await chunks_collection.exists():
-        await database_connection.client.collections.create(
-            name=database_connection.chunks_collection,
-            properties=[
-                wvcc.Property(name=database_connection.chunk_text_prop, data_type=wvcc.DataType.TEXT),
-            ],
-            references=[
-                wvcc.ReferenceProperty(
-                    name=database_connection.chunk_user_collection_ref,
-                    target_collection=database_connection.chunk_user_collection_ref,
-                )
-            ],
-        )
 
 @pytest.fixture
 def text_chunks_payload() -> list[dict]:
@@ -50,22 +32,6 @@ def text_chunks_payload() -> list[dict]:
     ]
     return [chunk.model_dump(mode="json") for chunk in chunks]
 
-
-@pytest.fixture
-async def db_request_payload(database_connection, text_chunks_payload: list[dict]) -> dict:
-    await _ensure_test_collections(database_connection)
-
-    collection_id = "dcedd3ad-fc99-4c85-a968-97df777c2064"
-    user_collection = database_connection.client.collections.use(database_connection.chunk_user_collection_ref)
-
-    exists = await user_collection.data.exists(collection_id)
-
-    assert exists, (
-        f"Test collection with ID {collection_id} does not exist in the database. "
-        "Please ensure it is created and contains the necessary data for testing."
-    )
-
-    return {"collection_id": str(collection_id)}
 
 
 @pytest.mark.integration
@@ -229,4 +195,3 @@ async def test_discover_db_dense(base_url: str, db_request_payload: dict) -> Non
     assert len(result["topic_documents"]) == 2, (
         f"Expected 2 topic entries, got {len(result['topic_documents'])}"
     )
-
