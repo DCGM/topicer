@@ -20,9 +20,6 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
         if self.llm_service is None:
             raise MissingServiceError(
                 "LLM service is not set for LLMTopicer.")
-        if self.db_connection is None:
-            raise MissingServiceError(
-                "DB connection is not set for LLMTopicer.")
 
     async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
 
@@ -58,11 +55,10 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
         {tags_json}
         """
 
-        async with self.llm_service as llm_service:
-            # Call LLM service to get structured tag proposals. The method expects a list of text chunks but we provide only one.
-            llm_proposals_list: list[LLMTagProposalList] = await llm_service.process_text_chunks_structured(text_chunks=[input_text],
-                                                                                                            instruction=instructions,
-                                                                                                            output_type=LLMTagProposalList)
+        # Call LLM service to get structured tag proposals. The method expects a list of text chunks but we provide only one.
+        llm_proposals_list: list[LLMTagProposalList] = await self.llm_service.process_text_chunks_structured(text_chunks=[input_text],
+                                                                                                                instruction=instructions,
+                                                                                                                output_type=LLMTagProposalList)
 
         # Extract proposals from the single response
         llm_proposals = llm_proposals_list[0].proposals
@@ -106,7 +102,9 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
         )
 
     async def propose_tags_in_db(self, tag: Tag,  db_request: DBRequest) -> list[TextChunkWithTagSpanProposals]:
-
+        if self.db_connection is None:
+            raise MissingServiceError("DB connection is not set for LLMTopicer.")
+        
         results: list[TextChunkWithTagSpanProposals] = []
 
         tag_embedding = self.embedding_service.embed_queries([tag.name])[0]
