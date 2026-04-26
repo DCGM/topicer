@@ -32,12 +32,13 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
         
         ### Instructions:
         1. Read the input text.
-        2. Identify spans that match the definitions of the Available Tags.
-        3. For each match, you MUST extract:
+        2. Review the Available Tags. Each tag has a name and optionally a description (explaining what should and should not be annotated) and examples (representative strings that should be tagged). Use all available fields to understand the tag's meaning.
+        3. Identify spans that match the definitions of the Available Tags.
+        4. For each match, you MUST extract:
            - `quote`: The **EXACT** substring from the text. Copy it precisely, character for character.
            - `context_before`: The 5-10 words immediately preceding the quote, if available. This is crucial to locate the text if the phrase appears multiple times. Don't bother with whitespaces, just focus on words separated by spaces.
            - `context_after`: The 5-10 words immediately following the quote, if available. This is crucial to locate the text if the phrase appears multiple times. Don't bother with whitespaces, just focus on words separated by spaces.
-           - `tag`: The matching tag object.
+           - `tag_id`: The id of the matching tag (copy the id exactly from the Available Tags list).
            - `confidence`: A score between 0.0 and 1.0. Indicate how confident you are that this quote matches the tag. Try to be as accurate as possible, the confidence doesn't necessarily need to be really close to 1.0. You don't need to only return high-confidence matches; lower-confidence matches are acceptable if you believe they might be relevant. It's better to provide more options for downstream processing, but do not flood with very low-confidence matches.
            - `reason`: (optional) A brief explanation of why you selected this quote for the tag.
         
@@ -65,8 +66,16 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
 
         final_proposals = []
 
+        # Build a lookup map to resolve full Tag objects by id
+        tags_by_id = {tag.id: tag for tag in tags}
+
         # Post-processing in Python (Calculating indices)
         for prop in llm_proposals:
+            resolved_tag = tags_by_id.get(prop.tag_id)
+            if resolved_tag is None:
+                logging.warning(f"LLM returned unknown tag id '{prop.tag_id}', skipping.")
+                continue
+
             # We have quote and context_before, need to find indices in text_chunk.text
             indices = self.fuzzy_matcher.find_best_span(
                 full_text=text_chunk.text,
@@ -81,7 +90,7 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
                 # We create the final object with indices that your application expects
                 final_proposals.append(
                     TagSpanProposal(
-                        tag=prop.tag,
+                        tag=resolved_tag,
                         span_start=start,
                         span_end=end,
                         confidence=prop.confidence,
@@ -107,7 +116,14 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
         
         results: list[TextChunkWithTagSpanProposals] = []
 
-        tag_embedding = self.embedding_service.embed_queries([tag.name])[0]
+        query_parts = [tag.name]
+        if tag.description:
+            query_parts.append(tag.description)
+        if tag.examples:
+            query_parts.extend(tag.examples)
+        query_text = "\n".join(query_parts)
+
+        tag_embedding = self.embedding_service.embed_queries([query_text])[0]
 
         async with self.db_connection as db_conn:
             text_chunks: list[TextChunk] = await db_conn.find_similar_text_chunks(
@@ -126,3 +142,33 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
         all_proposals = await asyncio.gather(*tasks)
 
         return [p for p in all_proposals if p.tag_span_proposals]
+
+    async def propose_tags_in_db_stream(self, tag: Tag, db_request: DBRequest):
+        if self.db_connection is None:
+            raise MissingServiceError("DB connection is not set for LLMTopicer.")
+
+        query_parts = [tag.name]
+        if tag.description:
+            query_parts.append(tag.description)
+        if tag.examples:
+            query_parts.extend(tag.examples)
+        query_text = "\n".join(query_parts)
+
+        tag_embedding = self.embedding_service.embed_queries([query_text])[0]
+
+        async with self.db_connection as db_conn:
+            text_chunks: list[TextChunk] = await db_conn.find_similar_text_chunks(
+                text=tag.name,
+                embedding=tag_embedding,
+                db_request=db_request
+            )
+
+        if not text_chunks:
+            logging.info(f"No similar text chunks found for tag '{tag.name}' in the database.")
+            return
+
+        tasks = [self.propose_tags(text_chunk=chunk, tags=[tag]) for chunk in text_chunks]
+        for coro in asyncio.as_completed(tasks):
+            result = await coro
+            if result.tag_span_proposals:
+                yield result

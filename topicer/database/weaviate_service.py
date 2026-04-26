@@ -61,7 +61,11 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
 
     # Max vector distance for similarity searches
     max_vector_distance = ConfigurableValue(
-        desc="Maximum vector distance for similarity searches",
+        desc=(
+            "Maximum vector distance for similarity searches. Chunks exceeding this threshold are excluded. "
+            "For cosine distance (range 0.0–2.0): 0.0 = identical, 1.0 = unrelated, 2.0 = opposite. "
+            "Recommended: 0.3–0.5 (strict), 0.5–0.7 (moderate). "
+        ),
         user_default=1.0,
         voluntary=True,
     )

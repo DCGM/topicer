@@ -12,7 +12,7 @@ class Tag(BaseModel):
     id: UUID
     name: str
     description: str | None = None
-    examples: list[TextWithSpan] | None = None
+    examples: list[str] | None = None
 
 class TagSpanProposal(BaseModel):
     tag: Tag
