@@ -1,7 +1,7 @@
 import logging
 from typing import Sequence
 from fastapi import APIRouter, HTTPException, status, Depends
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 
 from topicer.schemas import (DBRequest, DiscoveredTopics, DiscoveredTopicsSparse, Tag, TextChunk,
                              TextChunkWithTagSpanProposals)
@@ -135,3 +135,39 @@ async def propose_tags_in_db(config_name: str, tag: Tag, db_request: DBRequest, 
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Method not applicable to {config_name}.")
 
     return result
+
+
+@topicer_router.post(
+    "/tags/propose/db/stream",
+    summary="Propose tags on texts from database, streaming results as they complete (NDJSON).",
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            "content": {
+                "application/x-ndjson": {
+                    "schema": {"$ref": "#/components/schemas/TextChunkWithTagSpanProposals"},
+                }
+            },
+            "description": "Stream of TextChunkWithTagSpanProposals objects, one JSON object per line.",
+        }
+    },
+)
+async def propose_tags_in_db_stream(config_name: str, tag: Tag, db_request: DBRequest, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)) -> StreamingResponse:
+    if config_name not in loaded_topicers:
+        logger.warning(f"Config {config_name} not found among loaded topicers: {list(loaded_topicers.keys())}")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
+
+    topicer_model = loaded_topicers[config_name]
+
+    if not hasattr(topicer_model, "propose_tags_in_db_stream"):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Streaming not supported for {config_name}.")
+
+    async def generate():
+        try:
+            async for result in topicer_model.propose_tags_in_db_stream(tag=tag, db_request=db_request):
+                yield result.model_dump_json() + "\n"
+        except Exception as e:
+            logger.error(f"Error during streaming tag proposal for config {config_name}: {e}")
+            raise
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson")

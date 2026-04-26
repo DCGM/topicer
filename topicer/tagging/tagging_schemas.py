@@ -1,14 +1,14 @@
 # THIS FILE CONTAINS PRIVATE SCHEMAS USED FOR TAGGING PROPOSALS
 
+from uuid import UUID
 from pydantic import BaseModel, Field
-from topicer.schemas import Tag
 
 # Tagging schemas
 
 
 class LLMTagProposal(BaseModel):
     """ LLM proposal for tagging a text with a specific tag """
-    tag: Tag
+    tag_id: UUID = Field(..., description="The id of the matched tag.")
     quote: str = Field(...,
                        description="The exact substring from the text that corresponds to the tag.")
     context_before: str | None = Field(
