@@ -205,13 +205,46 @@ http://localhost:8000/docs
 
 ### Local Execution
 
+**Linux / macOS (bash):**
+
 ```bash
+# 1. Create a virtual environment
 python -m venv venv
+
+# 2. Activate the environment
 source venv/bin/activate
+
+# 3. Install dependencies
 pip install -r requirements.txt
 pip install -r topicer_api/requirements.txt
+
+# 4. Set environment variables (PYTHONPATH and config directory)
 export PYTHONPATH=`pwd`:$PYTHONPATH
 export TOPICER_API_CONFIGS_DIR=`pwd`/deploy/data/configs
+
+# 5. Start the server
+cd topicer_api
+python run.py
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# 1. Create a virtual environment
+python -m venv venv
+
+# 2. Activate the environment
+.\venv\Scripts\activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+pip install -r topicer_api/requirements.txt
+
+# 4. Set environment variables (PYTHONPATH and config directory)
+$env:PYTHONPATH = "$(Get-Location);$env:PYTHONPATH"
+$env:TOPICER_API_CONFIGS_DIR = "$(Get-Location)\deploy\data\configs"
+
+# 5. Start the server
 cd topicer_api
 python run.py
 ```
