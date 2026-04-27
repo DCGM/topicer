@@ -33,6 +33,7 @@ class TextChunkWithTagSpanProposals(TextChunk):
 
 class DBRequest(BaseModel):
     collection_id: UUID | None = None
+    document_id: UUID | None = None
 
 
 class Topic(BaseModel):

@@ -32,10 +32,21 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         user_default="Chunks_test",
         voluntary=True,
     )
+    documents_collection = ConfigurableValue(
+        desc="Collection/class name storing documents (if applicable)",
+        user_default="Documents",
+        voluntary=True,
+    )
     # Property on chunk objects that links/filters by user collection id
     chunk_user_collection_ref = ConfigurableValue(
         desc="Property on Chunks referencing the user collection",
         user_default="userCollection",
+        voluntary=True,
+    )
+    # Property on chunk objects that links/filters by document id
+    chunk_document_ref = ConfigurableValue(
+        desc="Property on Chunks referencing the parent document",
+        user_default="document",
         voluntary=True,
     )
     # Property holding the text in chunk objects
@@ -166,10 +177,13 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         results: list[TextChunk] = []
         top_k = k if k is not None else self.chunks_limit
 
-        chunk_filter = Filter.by_ref(
-            self.chunk_user_collection_ref).by_id().equal(db_request.collection_id) if (
-                db_request is not None and db_request.collection_id is not None
-        ) else None
+        filters = []
+        if db_request is not None and db_request.collection_id is not None:
+            filters.append(Filter.by_ref(self.chunk_user_collection_ref).by_id().equal(db_request.collection_id))
+        if db_request is not None and db_request.document_id is not None:
+            filters.append(Filter.by_ref(self.chunk_document_ref).by_id().equal(db_request.document_id))
+
+        chunk_filter = filters[0] & filters[1] if len(filters) == 2 else filters[0] if len(filters) == 1 else None
 
         vec = embedding.tolist()
 
