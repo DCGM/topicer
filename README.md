@@ -112,6 +112,14 @@ Topicer supports multiple tag proposal methods:
 * Uses external LLMs (OpenAI, Ollama, etc.)
 * Identifies and localizes tag spans using a robust matching strategy
 * Suitable for zero-shot and few-shot tagging
+* The prompt leverages every available `Tag` field (`name`, optional `description`,
+  optional `examples`) so the model can disambiguate semantically close tags
+* For database-backed tagging, the same fields are joined into a single query
+  embedding, which improves retrieval recall on inflective languages
+* The LLM returns only `tag_id` (UUID) instead of the full tag object,
+  which reduces token usage and prevents schema hallucination;
+  unknown ids are skipped with a warning
+* Supports incremental streaming via `propose_tags_in_db_stream`
 
 #### GLiNER-based Tagging (`GlinerTopicer`)
 
@@ -130,6 +138,8 @@ Topicer supports multiple tag proposal methods:
 
 ## API Reference
 
+### Async method API
+
 All topicer methods implement a subset of the following async API:
 
 ```python
@@ -141,9 +151,37 @@ async def discover_topics_in_db_dense(db_request, n=None)
 
 async def propose_tags(text_chunk, tags)
 async def propose_tags_in_db(tag, db_request)
+async def propose_tags_in_db_stream(tag, db_request)  # async generator (LLMTopicer only)
 ```
 
 If a method does not implement a requested function, a `NotImplemented` exception is raised.
+
+### `Tag` schema
+
+Tags passed to all `propose_tags*` methods follow this Pydantic schema:
+
+```python
+class Tag(BaseModel):
+    id: UUID
+    name: str
+    description: str | None = None
+    examples: list[str] | None = None   # plain example strings
+```
+
+> **Breaking change vs. previous releases:** `examples` is now `list[str]` instead
+> of `list[TextWithSpan]`. Provide just representative phrases \u2014 no offsets needed.
+
+### `DBRequest`
+
+`DBRequest` controls which subset of chunks stored in the database is processed:
+
+```python
+class DBRequest(BaseModel):
+    collection_id: UUID | None = None  # restrict to a user collection
+    document_id:   UUID | None = None  # restrict to a single document
+```
+
+Both filters are optional and can be combined (logical AND).
 
 ---
 
@@ -176,7 +214,6 @@ db_connection:
 ```
 
 The configuration is parsed and validated automatically by the factory.
-
 ---
 
 ## REST API
@@ -192,12 +229,21 @@ Topicer includes a REST API built with **FastAPI**.
 * `/v1/topics/discover/db/dense`
 * `/v1/tags/propose/texts`
 * `/v1/tags/propose/db`
+* `/v1/tags/propose/db/stream` &nbsp;&nbsp;*(NDJSON stream of `TextChunkWithTagSpanProposals`, one per line; LLM-based topicers only)*
 
 Swagger documentation is available at:
 
 ```
 http://localhost:8000/docs
 ```
+
+#### Streaming endpoint
+
+`POST /v1/tags/propose/db/stream` returns `application/x-ndjson` — each line is a JSON-serialized
+`TextChunkWithTagSpanProposals` object emitted as soon as the underlying LLM call finishes,
+so clients can render results progressively without waiting for the whole batch.
+Only topicers that implement `propose_tags_in_db_stream` (currently `LLMTopicer`) accept this route;
+other configs return HTTP 409.
 
 ---
 
