@@ -29,7 +29,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
     # Data model config
     chunks_collection = ConfigurableValue(
         desc="Collection/class name storing text chunks",
-        user_default="Chunks_test",
+        user_default="Chunks",
         voluntary=True,
     )
     documents_collection = ConfigurableValue(
