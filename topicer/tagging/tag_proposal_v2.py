@@ -26,9 +26,9 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
     )
     device: int = ConfigurableValue(
         desc="Device (0 for GPU, -1 for CPU)", user_default=0)
-    proposal_threshold: float = ConfigurableValue(
+    tag_proposal_threshold: float = ConfigurableValue(
         desc="Confidence threshold for accepting a tag proposal", user_default=0.6)
-    zero_shot_threshold: float = ConfigurableValue(
+    find_probable_tags_threshold: float = ConfigurableValue(
         desc="Confidence threshold for zero-shot classification", user_default=0.6)
 
     def check_init(self) -> None:
@@ -57,7 +57,7 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
 
         best_tag_obj = next((t for t in tags if t.name == best_label), None)
 
-        if best_tag_obj and best_score >= self.zero_shot_threshold:
+        if best_tag_obj and best_score >= self.find_probable_tags_threshold:
             return {
                 "tag": best_tag_obj,
                 "confidence": best_score
@@ -163,7 +163,7 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
                             search_start_indices[quote] = end_index
 
                             # kontrola thresholdu
-                            if match.get("confidence", 0) >= self.proposal_threshold:
+                            if match.get("confidence", 0) >= self.tag_proposal_threshold:
                                 proposals.append(TagSpanProposal(
                                     tag=matching_tag,
                                     span_start=start_index,
