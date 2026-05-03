@@ -3,9 +3,10 @@
 import json
 import logging
 from uuid import UUID
-from typing import cast
+from typing import Optional, cast
 
 from classconfig import ConfigurableMixin
+from transformers import pipeline
 
 
 from topicer.base import BaseTopicer, MissingServiceError
@@ -27,7 +28,31 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
             raise MissingServiceError(
                 "DB connection is not set for TagProposalV2.")
 
-    # funkce využívá běžný client.chat.completions.
+        self.classifier = pipeline(
+            "zero-shot-classification",
+            model="MoritzLaurer/mDeBERTa-v3-base-mnli-xnli",
+            device=0  # využití GPU
+        )
+
+    def find_most_probable_tag(self, text: str, tags: list[Tag]) -> Optional[dict]:
+        if not text or not tags:
+            return None
+
+        tag_names = [tag.name for tag in tags]
+        result = self.classifier(text, tag_names)
+
+        best_label = result['labels'][0]  # type: ignore
+        best_score = result['scores'][0]  # type: ignore
+
+        best_tag_obj = next((t for t in tags if t.name == best_label), None)
+
+        if best_tag_obj:
+            return {
+                "tag": best_tag_obj,
+                "confidence": best_score
+            }
+        return None
+
     async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
         # 1. tagy do JSONu
         tags_info = json.dumps([tag.model_dump(mode="json")
