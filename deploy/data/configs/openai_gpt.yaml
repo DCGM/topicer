@@ -1,6 +1,10 @@
 topicer:
     cls: TagProposalV2
-    config: {}
+    config:
+        model: "MoritzLaurer/mDeBERTa-v3-base-mnli-xnli"
+        device: 0
+        proposal_threshold: 0.6
+        zero_shot_threshold: 0.6
 llm_service:
     cls: OpenAIService
     config:

@@ -12,13 +12,24 @@ from transformers import pipeline
 from topicer.base import BaseTopicer, MissingServiceError
 from topicer.llm.openai import OpenAIService
 from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals, DBRequest
+from classconfig import ConfigurableMixin, ConfigurableValue
 
 
 class TagProposalV2(BaseTopicer, ConfigurableMixin):
-
     @property
     def openai(self) -> OpenAIService:
         return cast(OpenAIService, self.llm_service)
+
+    model: str = ConfigurableValue(
+        desc="Zero-shot classification model from HuggingFace",
+        user_default="MoritzLaurer/mDeBERTa-v3-base-mnli-xnli"
+    )
+    device: int = ConfigurableValue(
+        desc="Device (0 for GPU, -1 for CPU)", user_default=0)
+    proposal_threshold: float = ConfigurableValue(
+        desc="Confidence threshold for accepting a tag proposal", user_default=0.6)
+    zero_shot_threshold: float = ConfigurableValue(
+        desc="Confidence threshold for zero-shot classification", user_default=0.6)
 
     def check_init(self) -> None:
         if self.llm_service is None:
@@ -30,8 +41,8 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
 
         self.classifier = pipeline(
             "zero-shot-classification",
-            model="MoritzLaurer/mDeBERTa-v3-base-mnli-xnli",
-            device=0  # využití GPU
+            model=self.model,
+            device=self.device
         )
 
     def find_most_probable_tag(self, text: str, tags: list[Tag]) -> Optional[dict]:
@@ -46,7 +57,7 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
 
         best_tag_obj = next((t for t in tags if t.name == best_label), None)
 
-        if best_tag_obj:
+        if best_tag_obj and best_score >= self.zero_shot_threshold:
             return {
                 "tag": best_tag_obj,
                 "confidence": best_score
@@ -151,13 +162,16 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
                             # uložení nové pozice pro příští hledání stejného slova
                             search_start_indices[quote] = end_index
 
-                            proposals.append(TagSpanProposal(
-                                tag=matching_tag,
-                                span_start=start_index,
-                                span_end=end_index,
-                                confidence=match.get("confidence"),
-                                reason=match.get("reason", "Nalezeno modelem")
-                            ))
+                            # kontrola thresholdu
+                            if match.get("confidence", 0) >= self.proposal_threshold:
+                                proposals.append(TagSpanProposal(
+                                    tag=matching_tag,
+                                    span_start=start_index,
+                                    span_end=end_index,
+                                    confidence=match.get("confidence"),
+                                    reason=match.get(
+                                        "reason", "Nalezeno modelem")
+                                ))
 
                 # vrácení výsledku ve chtěném formátu
                 return TextChunkWithTagSpanProposals(
