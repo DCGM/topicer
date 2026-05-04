@@ -35,9 +35,6 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
         if self.llm_service is None:
             raise MissingServiceError(
                 "LLM service is not set for TagProposalV2.")
-        if self.db_connection is None:
-            raise MissingServiceError(
-                "DB connection is not set for TagProposalV2.")
 
         self.classifier = pipeline(
             "zero-shot-classification",
@@ -189,4 +186,7 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
             )
 
     async def propose_tags_in_db(self, tag: Tag,  db_request: DBRequest) -> list[TextChunkWithTagSpanProposals]:
+        if self.db_connection is None:
+            raise MissingServiceError(
+                "DB connection is not set for TagProposalV2.")
         return []
