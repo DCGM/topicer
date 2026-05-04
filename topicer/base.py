@@ -183,6 +183,7 @@ class TopicerFactory(CreatableMixin, ConfigurableMixin):
 
 def factory(cfg: str | dict | Config) -> BaseTopicer:
     load_dotenv()
+    print("Initializing topicer with config:", cfg)
 
     f = TopicerFactory.create(cfg)
     topicer = f.topicer
