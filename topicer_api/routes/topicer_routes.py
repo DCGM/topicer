@@ -1,5 +1,6 @@
 import logging
 from typing import Sequence
+import asyncio
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.responses import RedirectResponse, StreamingResponse
 
@@ -135,6 +136,50 @@ async def propose_tags_in_db(config_name: str, tag: Tag, db_request: DBRequest, 
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Method not applicable to {config_name}.")
 
     return result
+
+
+@topicer_router.post(
+    "/tags/propose/texts/most_probable",
+    summary="Find the single most probable tag for a text chunk using BERT zero-shot."
+)
+async def find_most_probable_tag(
+    config_name: str,
+    text_chunk: TextChunk,
+    tags: list[Tag],
+    loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)
+) -> dict | None:
+    if config_name not in loaded_topicers:
+        logger.warning(
+            f"Config {config_name} not found among loaded topicers: {list(loaded_topicers.keys())}")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Config {config_name} not found.")
+
+    topicer_model = loaded_topicers[config_name]
+    if not hasattr(topicer_model, "find_most_probable_tag"):
+        logger.warning(
+            f"Method 'find_most_probable_tag' not implemented for config: {config_name}")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail=f"Method not applicable to {config_name}.")
+
+    logger.info(
+        f"Using topicer config: {config_name} to find most probable tag")
+
+    try:
+        result = await asyncio.to_thread(
+            topicer_model.find_most_probable_tag,
+            text_chunk.text,
+            tags
+        )
+
+        logger.info(
+            f"Successfully found most probable tag using config: {config_name}")
+        return result
+
+    except Exception as e:
+        logger.error(
+            f"Error in find_most_probable_tag for config {config_name}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @topicer_router.post(

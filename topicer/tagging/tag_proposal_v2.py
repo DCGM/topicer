@@ -3,21 +3,33 @@
 import json
 import logging
 from uuid import UUID
-from typing import cast
+from typing import Optional, cast
 
 from classconfig import ConfigurableMixin
+from transformers import pipeline
 
 
 from topicer.base import BaseTopicer, MissingServiceError
 from topicer.llm.openai import OpenAIService
 from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals, DBRequest
+from classconfig import ConfigurableMixin, ConfigurableValue
 
 
 class TagProposalV2(BaseTopicer, ConfigurableMixin):
-
     @property
     def openai(self) -> OpenAIService:
         return cast(OpenAIService, self.llm_service)
+
+    model: str = ConfigurableValue(
+        desc="Zero-shot classification model from HuggingFace",
+        user_default="MoritzLaurer/mDeBERTa-v3-base-mnli-xnli"
+    )
+    device: int = ConfigurableValue(
+        desc="Device (0 for GPU, -1 for CPU)", user_default=0)
+    tag_proposal_threshold: float = ConfigurableValue(
+        desc="Confidence threshold for accepting a tag proposal", user_default=0.6)
+    find_probable_tags_threshold: float = ConfigurableValue(
+        desc="Confidence threshold for zero-shot classification", user_default=0.6)
 
     def check_init(self) -> None:
         if self.llm_service is None:
@@ -27,7 +39,31 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
             raise MissingServiceError(
                 "DB connection is not set for TagProposalV2.")
 
-    # funkce využívá běžný client.chat.completions.
+        self.classifier = pipeline(
+            "zero-shot-classification",
+            model=self.model,
+            device=self.device
+        )
+
+    def find_most_probable_tag(self, text: str, tags: list[Tag]) -> Optional[dict]:
+        if not text or not tags:
+            return None
+
+        tag_names = [tag.name for tag in tags]
+        result = self.classifier(text, tag_names)
+
+        best_label = result['labels'][0]  # type: ignore
+        best_score = result['scores'][0]  # type: ignore
+
+        best_tag_obj = next((t for t in tags if t.name == best_label), None)
+
+        if best_tag_obj and best_score >= self.find_probable_tags_threshold:
+            return {
+                "tag": best_tag_obj,
+                "confidence": best_score
+            }
+        return None
+
     async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
         # 1. tagy do JSONu
         tags_info = json.dumps([tag.model_dump(mode="json")
@@ -126,13 +162,16 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
                             # uložení nové pozice pro příští hledání stejného slova
                             search_start_indices[quote] = end_index
 
-                            proposals.append(TagSpanProposal(
-                                tag=matching_tag,
-                                span_start=start_index,
-                                span_end=end_index,
-                                confidence=match.get("confidence"),
-                                reason=match.get("reason", "Nalezeno modelem")
-                            ))
+                            # kontrola thresholdu
+                            if match.get("confidence", 0) >= self.tag_proposal_threshold:
+                                proposals.append(TagSpanProposal(
+                                    tag=matching_tag,
+                                    span_start=start_index,
+                                    span_end=end_index,
+                                    confidence=match.get("confidence"),
+                                    reason=match.get(
+                                        "reason", "Nalezeno modelem")
+                                ))
 
                 # vrácení výsledku ve chtěném formátu
                 return TextChunkWithTagSpanProposals(
