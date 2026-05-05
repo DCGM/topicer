@@ -5,20 +5,30 @@ import logging
 from uuid import UUID
 from typing import Optional, cast
 
-from classconfig import ConfigurableMixin
+from classconfig import ConfigurableMixin, ConfigurableValue
+from pydantic import BaseModel, Field
 from transformers import pipeline
 
-
 from topicer.base import BaseTopicer, MissingServiceError
-from topicer.llm.openai import OpenAIService
+from topicer.llm.api_async import OpenAsyncAPI
 from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals, DBRequest
-from classconfig import ConfigurableMixin, ConfigurableValue
+
+
+class TagProposalMatch(BaseModel):
+    tag_id: UUID
+    quote: str
+    reason: str | None = None
+    confidence: float
+
+
+class TagProposalResponse(BaseModel):
+    matches: list[TagProposalMatch] = Field(default_factory=list)
 
 
 class TagProposalV2(BaseTopicer, ConfigurableMixin):
     @property
-    def openai(self) -> OpenAIService:
-        return cast(OpenAIService, self.llm_service)
+    def openai(self) -> OpenAsyncAPI:
+        return cast(OpenAsyncAPI, self.llm_service)
 
     model: str = ConfigurableValue(
         desc="Zero-shot classification model from HuggingFace",
@@ -90,95 +100,74 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
         {tags_info}
         """
 
-        # 4. volání OpenAI
+        # 4. volání OpenAsyncAPI
 
         try:
-            async with self.openai as openai_service:
-                response = await openai_service.client.chat.completions.create(
-                    model=self.openai.model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
+            responses = await self.openai.process_text_chunks_structured(
+                text_chunks=[user_prompt],
+                instruction=system_prompt,
+                output_type=TagProposalResponse
+            )
 
-                    # vynucení JSON výstupu
-                    response_format={"type": "json_object"},
-                    # pro konzistenci odpovědí
-                    temperature=0
-                )
+            matches = responses[0].matches if responses else []
 
-                # zpracování odpovědi
-                content = response.choices[0].message.content
-                if content is None:
-                    raise ValueError(
-                        "Chybná odpověď od OpenAI: content is None")
+            # příprava návrhů
+            proposals = []
 
-                # parsování odpovědi do JSONu
-                data = json.loads(content)
+            # nalezení indexu pro výskyty
+            '''
+            mohlo by se stát že v textu "Python je super jazyk. Python se mi líbí."
+            se hledá tag programovacích jazyků, OpenAI vrátí dvakrát "Python" jako quote.
+            Při hledání pomocí .find() bychom ale pořád našli první výskyt.
+            Takže se vytvoří slovník search_start_indices.
+            Ten sleduje, kde jsme skončili u každého quote a díky tomu se
+            správně označí start_index a end_index pro každý výskyt.
+            '''
 
-                # extrakce matches z JSONu - takto to máme definované v promptu
-                matches = data.get("matches", [])
+            # cache pro hlídání pozic opakovaných slov
+            search_start_indices = {}
 
-                # příprava návrhů
-                proposals = []
+            for match in matches:
+                tag_uuid = match.tag_id
 
-                # nalezení indexu pro výskyty
-                '''
-                mohlo by se stát že v textu "Python je super jazyk. Python se mi líbí."
-                se hledá tag programovacích jazyků, OpenAI vrátí dvakrát "Python" jako quote.
-                Při hledání pomocí .find() bychom ale pořád našli první výskyt.
-                Takže se vytvoří slovník search_start_indices.
-                Ten sleduje, kde jsme skončili u každého quote a díky tomu se
-                správně označí start_index a end_index pro každý výskyt.
-                '''
+                # next pouzivame pro rychlejsi nalezeni, protoze nemusime projit cely seznam
+                matching_tag = next(
+                    (tag for tag in tags if tag.id == tag_uuid), None)
 
-                # cache pro hlídání pozic opakovaných slov
-                search_start_indices = {}
+                # Kontrola, zda byl tag nalezen
+                if matching_tag is None:
+                    logging.warning(
+                        f"Tag s UUID {tag_uuid} nebyl nalezen v poskytnutém listu tagů")
+                    continue  # přeskočit tento match
 
-                for match in matches:
-                    tag_id_str = match.get("tag_id")
-                    # Převod string na UUID a nalezení tagu
-                    tag_uuid = UUID(tag_id_str)
+                quote = match.quote
 
-                    # next pouzivame pro rychlejsi nalezeni, protoze nemusime projit cely seznam
-                    matching_tag = next(
-                        (tag for tag in tags if tag.id == tag_uuid), None)
+                if matching_tag and quote:
+                    # odkud máme hledat (abychom nenašli pořád to stejné první slovo)
+                    search_from = search_start_indices.get(quote, 0)
+                    start_index = text_chunk.text.find(quote, search_from)
 
-                    # Kontrola, zda byl tag nalezen
-                    if matching_tag is None:
-                        logging.warning(
-                            f"Tag s UUID {tag_uuid} nebyl nalezen v poskytnutém listu tagů")
-                        continue  # přeskočit tento match
+                    if start_index != -1:
+                        end_index = start_index + len(quote)
+                        # uložení nové pozice pro příští hledání stejného slova
+                        search_start_indices[quote] = end_index
 
-                    quote = match.get("quote")
+                        # kontrola thresholdu
+                        if match.confidence >= self.tag_proposal_threshold:
+                            proposals.append(TagSpanProposal(
+                                tag=matching_tag,
+                                span_start=start_index,
+                                span_end=end_index,
+                                confidence=match.confidence,
+                                reason=match.reason or "Nalezeno modelem"
+                            ))
 
-                    if matching_tag and quote:
-                        # odkud máme hledat (abychom nenašli pořád to stejné první slovo)
-                        search_from = search_start_indices.get(quote, 0)
-                        start_index = text_chunk.text.find(quote, search_from)
-
-                        if start_index != -1:
-                            end_index = start_index + len(quote)
-                            # uložení nové pozice pro příští hledání stejného slova
-                            search_start_indices[quote] = end_index
-
-                            # kontrola thresholdu
-                            if match.get("confidence", 0) >= self.tag_proposal_threshold:
-                                proposals.append(TagSpanProposal(
-                                    tag=matching_tag,
-                                    span_start=start_index,
-                                    span_end=end_index,
-                                    confidence=match.get("confidence"),
-                                    reason=match.get(
-                                        "reason", "Nalezeno modelem")
-                                ))
-
-                # vrácení výsledku ve chtěném formátu
-                return TextChunkWithTagSpanProposals(
-                    id=text_chunk.id,
-                    text=text_chunk.text,
-                    tag_span_proposals=proposals,
-                )
+            # vrácení výsledku ve chtěném formátu
+            return TextChunkWithTagSpanProposals(
+                id=text_chunk.id,
+                text=text_chunk.text,
+                tag_span_proposals=proposals,
+            )
 
         except Exception as e:
             print(f"Chyba v propose_tags2: {e}")
