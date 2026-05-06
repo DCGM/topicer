@@ -40,12 +40,13 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
            - `context_after`: The 5-10 words immediately following the quote, if available. This is crucial to locate the text if the phrase appears multiple times. Don't bother with whitespaces, just focus on words separated by spaces.
            - `tag_id`: The id of the matching tag (copy the id exactly from the Available Tags list).
            - `confidence`: A score between 0.0 and 1.0. Indicate how confident you are that this quote matches the tag. Try to be as accurate as possible, the confidence doesn't necessarily need to be really close to 1.0. You don't need to only return high-confidence matches; lower-confidence matches are acceptable if you believe they might be relevant. It's better to provide more options for downstream processing, but do not flood with very low-confidence matches.
-           - `reason`: (optional) A brief explanation of why you selected this quote for the tag.
+           - `reason`: (optional) A brief explanation of why you selected this quote for the tag. Always write the `reason` in the same language as the tags and their definitions (name/description/examples). If the language of the tags cannot be reliably determined, write the `reason` in the language of the document text being annotated.
         
         ### Constraints:
         - Do not paraphrase the quote.
         - Granularity level: {self.span_granularity}. Try to choose spans that fit this granularity approximately.
         - If no relevant spans are found for a tag, do not create any entries for it
+        - The `reason` field MUST be written in the language of the tags/definitions; fall back to the document's language only if the tag language is unclear.
         """
 
         input_text: str = f"""
