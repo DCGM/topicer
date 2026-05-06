@@ -3,14 +3,13 @@
 import json
 import logging
 from uuid import UUID
-from typing import Optional, cast
+from typing import Optional
 
 from classconfig import ConfigurableMixin, ConfigurableValue
 from pydantic import BaseModel, Field
 from transformers import pipeline
 
 from topicer.base import BaseTopicer, MissingServiceError
-from topicer.llm.api_async import OpenAsyncAPI
 from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals, DBRequest
 
 
@@ -26,10 +25,6 @@ class TagProposalResponse(BaseModel):
 
 
 class TagProposalV2(BaseTopicer, ConfigurableMixin):
-    @property
-    def openai(self) -> OpenAsyncAPI:
-        return cast(OpenAsyncAPI, self.llm_service)
-
     model: str = ConfigurableValue(
         desc="Zero-shot classification model from HuggingFace",
         user_default="MoritzLaurer/mDeBERTa-v3-base-mnli-xnli"
@@ -103,7 +98,7 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
         # 4. volání OpenAsyncAPI
 
         try:
-            responses = await self.openai.process_text_chunks_structured(
+            responses = await self.llm_service.process_text_chunks_structured(
                 text_chunks=[user_prompt],
                 instruction=system_prompt,
                 output_type=TagProposalResponse
