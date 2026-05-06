@@ -165,7 +165,9 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
             )
 
         except Exception as e:
-            print(f"Chyba v propose_tags2: {e}")
+            import traceback
+            print(f"Error in propose_tags2: {e}")
+            traceback.print_exc()
             return TextChunkWithTagSpanProposals(
                 id=text_chunk.id,
                 text=text_chunk.text,
