@@ -62,6 +62,10 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
         for label, score in zip(result["labels"], result["scores"]):
             tag_obj = next((t for t in tags if t.name == label), None)
 
+            # check the threshold
+            if score < self.find_probable_tags_threshold:
+                continue
+
             if tag_obj:
                 probable_tags.append({
                     "tag": tag_obj,
