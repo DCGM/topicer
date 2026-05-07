@@ -147,7 +147,7 @@ async def find_most_probable_tag(
     text_chunk: TextChunk,
     tags: list[Tag],
     loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)
-) -> dict | None:
+) -> list[dict]:
     if config_name not in loaded_topicers:
         logger.warning(
             f"Config {config_name} not found among loaded topicers: {list(loaded_topicers.keys())}")

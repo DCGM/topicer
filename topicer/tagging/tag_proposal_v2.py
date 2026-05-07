@@ -3,7 +3,6 @@
 import json
 import logging
 from uuid import UUID
-from typing import Optional
 
 from classconfig import ConfigurableMixin, ConfigurableValue
 from pydantic import BaseModel, Field
@@ -47,27 +46,29 @@ class TagProposalV2(BaseTopicer, ConfigurableMixin):
         self.classifier = pipeline(
             "zero-shot-classification",
             model=self.model,
-            device=self.device
+            device=self.device,
+            multi_label=True
         )
 
-    def find_most_probable_tag(self, text: str, tags: list[Tag]) -> Optional[dict]:
+    def find_most_probable_tag(self, text: str, tags: list[Tag]) -> list[dict]:
         if not text or not tags:
-            return None
+            return []
 
         tag_names = [tag.name for tag in tags]
         result = self.classifier(text, tag_names)
 
-        best_label = result['labels'][0]  # type: ignore
-        best_score = result['scores'][0]  # type: ignore
+        probable_tags = []
 
-        best_tag_obj = next((t for t in tags if t.name == best_label), None)
+        for label, score in zip(result["labels"], result["scores"]):
+            tag_obj = next((t for t in tags if t.name == label), None)
 
-        if best_tag_obj and best_score >= self.find_probable_tags_threshold:
-            return {
-                "tag": best_tag_obj,
-                "confidence": best_score
-            }
-        return None
+            if tag_obj:
+                probable_tags.append({
+                    "tag": tag_obj,
+                    "confidence": score
+                })
+
+        return probable_tags
 
     async def propose_tags(self, text_chunk: TextChunk, tags: list[Tag]) -> TextChunkWithTagSpanProposals:
         # 1. tagy do JSONu
