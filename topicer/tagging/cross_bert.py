@@ -85,17 +85,17 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
         Raises:
             FailedToLoadModelError: If the model cannot be loaded from either source.
         """
-        try:
-            self.load_model_from_hf()
-            return
-        except (OSError, ValueError):
-            pass
+        # try:
+        #     self.load_model_from_hf()
+        #     return
+        # except (OSError, ValueError):
+        #     pass
 
         try:
             self.load_local_model()
             return
         except (OSError, ValueError) as e:
-            raise FailedToLoadModelError(f"Failed to load CrossBertTopicer model from both HuggingFace and local path: {self.model}\n{e}")
+            raise FailedToLoadModelError(f"Failed to load CrossBertTopicer model from both HuggingFace and local path: {self.model}/model_{self.device}.pt\n{e}")
 
     def check_init(self):
         pass
