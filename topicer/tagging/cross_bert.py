@@ -94,8 +94,8 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
         try:
             self.load_local_model()
             return
-        except (OSError, ValueError):
-            raise FailedToLoadModelError(f"Failed to load CrossBertTopicer model from both HuggingFace and local path: {self.model}")
+        except (OSError, ValueError) as e:
+            raise FailedToLoadModelError(f"Failed to load CrossBertTopicer model from both HuggingFace and local path: {self.model}\n{e}")
 
     def check_init(self):
         pass
