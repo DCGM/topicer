@@ -2,7 +2,7 @@ from pathlib import Path
 import uuid
 import asyncio
 
-from topicer.base import factory
+from topicer import factory
 from topicer.schemas import TextChunk, Tag
 
 
@@ -58,5 +58,6 @@ if __name__ == "__main__":
     result = asyncio.run(get_result())
     for span in result.tag_span_proposals:
         print(f"{span.tag.name.capitalize()}:")
-        print(f"  Span (start: {span.span_start}, end: {span.span_end}): '{text_chunk.text[span.span_start:span.span_end]}'")
+        print(f"  Span (start: {span.span_start}, end: {span.span_end}), confidence: {span.confidence:.4f}")
+        print(f"  Text: {repr(text_chunk.text[span.span_start:span.span_end])}")
         print()
