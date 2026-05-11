@@ -8,3 +8,4 @@ topicer:
     gap_tolerance: 0
     normalize_score: true
     soft_max_score: false
+    confidence_mode: min

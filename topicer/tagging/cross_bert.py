@@ -53,6 +53,7 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
     gap_tolerance: int = ConfigurableValue(desc="Tolerance for gaps of tokens between two spans of the same tag.", user_default=0)
     normalize_score: bool = ConfigurableValue(desc="Whether to normalize the scores. This is dependent on the specific model implementation.", user_default=True)
     soft_max_score: bool = ConfigurableValue(desc="Whether to use soft maximum when selecting score for each token.", user_default=False)
+    confidence_mode: str = ConfigurableValue(desc="Mode for calculating confidence scores for proposed tags. Options are 'max', 'min', 'mean', 'product'.", user_default="min", voluntary=True)
     loaded_from_huggingface: bool = False
 
     def __post_init__(self) -> None:
@@ -168,18 +169,42 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
                 model_outputs = model_outputs.last_hidden_state
             except AttributeError:
                 model_outputs = model_outputs
-        tag_probabilities = self.calculate_probabilities(model_outputs, token_type_ids)
-        predictions = (tag_probabilities >= self.threshold).long().cpu().tolist()
+        tag_probabilities = self.calculate_probabilities(model_outputs, token_type_ids).cpu().tolist()
 
-        spans = self.extract_spans(predictions, offset_mapping, tag)
+        spans = self.extract_spans(tag_probabilities, offset_mapping, tag)
         return spans
 
-    def extract_spans(self, predictions: list[int], offset_mapping: list[tuple[int, int]], tag: Tag) -> list[TagSpanProposal]:
+    def calculate_confidence(self, span_probabilities: list[float]) -> float:
+        """
+        Calculates confidence score for a proposed tag span based on the probabilities of the tokens in the span and the specified confidence mode.
+
+        Parameters:
+            span_probabilities (list[float]): The list of probabilities for the tokens in the proposed span.
+
+        Returns:
+            float: The calculated confidence score for the proposed tag span.
+        """
+        match self.confidence_mode:
+            case "max":
+                return max(span_probabilities)
+            case "min":
+                return min(span_probabilities)
+            case "mean":
+                return sum(span_probabilities) / len(span_probabilities) if span_probabilities else 0.0
+            case "product":
+                product = 1.0
+                for prob in span_probabilities:
+                    product *= prob
+                return product
+            case _:
+                raise ValueError(f"Invalid confidence mode: {self.confidence_mode}. Supported modes are 'max', 'min', 'mean', 'product'.")
+
+    def extract_spans(self, probabilities: list[float], offset_mapping: list[tuple[int, int]], tag: Tag) -> list[TagSpanProposal]:
         """
         Finds spans of text that correspond to the given tag based on model predictions. It also accounts for gaps in model predictions based on a specified tolerance.
         
         Parameters:
-            predictions (list[int]): The list of binary predictions for each token.
+            probabilities (list[float]): The list of probabilities for each token.
             offset_mapping (list[tuple[int, int]]): The list of character offsets for each token.
             tag (Tag): The tag for which spans are being extracted.
 
@@ -187,27 +212,22 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
             list[TagSpanProposal]: A list of proposed tag spans.
 
         Raises:
-            ValueError: If the lengths of predictions and offset_mapping do not match.
+            ValueError: If the lengths of probabilities and offset_mapping do not match.
         """
 
         gap_tolerance = self.gap_tolerance
-
+        running_span_probs = []
         char_spans = []
         start_char, end_char = None, None
         gap_count = 0
 
-        for pred, (offset_start, offset_end) in zip(predictions, offset_mapping[-len(predictions)-1:-1], strict=True):
-            if pred == 1:
+        for prob, (offset_start, offset_end) in zip(probabilities, offset_mapping[-len(probabilities)-1:-1], strict=True):
+            if prob >= self.threshold:
+                running_span_probs.append(prob)
                 if start_char is None:
                     start_char = offset_start
-                    end_char = offset_end
-                    gap_count = 0
-                else:
-                    if gap_count > 0:
-                        end_char = offset_end
-                        gap_count = 0
-                    else:
-                        end_char = offset_end
+                end_char = offset_end
+                gap_count = 0
             else:
                 if start_char is not None:
                     gap_count += 1
@@ -216,18 +236,19 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
                             tag=tag,
                             span_start=start_char,
                             span_end=end_char,
-                            confidence=None,
+                            confidence=self.calculate_confidence(running_span_probs),
                             reason=None
                         ))
                         start_char, end_char = None, None
                         gap_count = 0
+                        running_span_probs = []
 
         if start_char is not None:
             char_spans.append(TagSpanProposal(
                 tag=tag,
                 span_start=start_char,
                 span_end=end_char,
-                confidence=None,
+                confidence=self.calculate_confidence(running_span_probs),
                 reason=None
             ))
 
