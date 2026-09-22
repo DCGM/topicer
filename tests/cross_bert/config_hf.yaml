@@ -6,5 +6,6 @@ topicer:
     device: cuda
     max_length: 512
     gap_tolerance: 0
+    stride: 32
     normalize_score: true
     soft_max_score: false
