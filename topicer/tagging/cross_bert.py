@@ -51,20 +51,21 @@ def cross_dot_product(
     return similarity_matrix
 
 
-def merge_spans(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
-    """Merge overlapping/touching (start, end) character spans, e.g. from
-    predictions on overlapping tokenizer windows."""
+def merge_spans(spans: list[tuple[int, int, list[float]]]) -> list[tuple[int, int, list[float]]]:
+    """Merge overlapping/touching (start, end, token_probabilities) character spans, e.g. from
+    predictions on overlapping tokenizer windows. Probabilities of merged spans are concatenated
+    so confidence can still be computed correctly over the full merged span afterward."""
     if not spans:
         return []
 
-    spans = sorted(spans)
+    spans = sorted(spans, key=lambda span: (span[0], span[1]))
     merged = [spans[0]]
-    for start, end in spans[1:]:
-        last_start, last_end = merged[-1]
+    for start, end, probs in spans[1:]:
+        last_start, last_end, last_probs = merged[-1]
         if start <= last_end:  # overlapping or touching
-            merged[-1] = (last_start, max(last_end, end))
+            merged[-1] = (last_start, max(last_end, end), last_probs + probs)
         else:
-            merged.append((start, end))
+            merged.append((start, end, probs))
     return merged
 
 
@@ -77,6 +78,7 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
     gap_tolerance: int = ConfigurableValue(desc="Tolerance for gaps of tokens between two spans of the same tag.", user_default=0)
     normalize_score: bool = ConfigurableValue(desc="Whether to normalize the scores. This is dependent on the specific model implementation.", user_default=True)
     soft_max_score: bool = ConfigurableValue(desc="Whether to use soft maximum when selecting score for each token.", user_default=True)
+    confidence_mode: str = ConfigurableValue(desc="Mode for calculating confidence scores for proposed tags. Options are 'max', 'min', 'mean', 'product'.", user_default="min", voluntary=True)
     loaded_from_huggingface: bool = False
 
     def __post_init__(self) -> None:
@@ -272,61 +274,90 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
 
         chunks = self.prepare_chunks(chunk_text, tag_text)
 
-        all_spans: list[tuple[int, int]] = []
+        all_spans: list[tuple[int, int, list[float]]] = []
         for chunk in chunks:
-            tag_probabilities = self.run_chunk(chunk)
-            predictions = (tag_probabilities >= self.threshold).long().cpu().tolist()
-            all_spans.extend(self.extract_char_spans(predictions, chunk["offset_mapping"]))
+            tag_probabilities = self.run_chunk(chunk).cpu().tolist()
+            all_spans.extend(self.extract_char_spans(tag_probabilities, chunk["offset_mapping"]))
 
-        # Overlapping windows can each independently (re)detect the same or a
-        # partially overlapping span -- merge before returning.
+        # Overlapping windows can each independently (re)detect the same or a partially overlapping
+        # span -- merge before returning, concatenating their per-token probabilities so confidence
+        # reflects the full merged span rather than just whichever window's slice was seen first.
         merged_spans = merge_spans(all_spans)
 
         return [
-            TagSpanProposal(tag=tag, span_start=start, span_end=end, confidence=None, reason=None)
-            for start, end in merged_spans
+            TagSpanProposal(
+                tag=tag,
+                span_start=start,
+                span_end=end,
+                confidence=self.calculate_confidence(probs),
+                reason=None,
+            )
+            for start, end, probs in merged_spans
         ]
 
-    def extract_char_spans(self, predictions: list[int], offset_mapping: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    def calculate_confidence(self, span_probabilities: list[float]) -> float:
         """
-        Finds character (start, end) spans of text that correspond to positive model predictions within
-        a single window. Accounts for gaps in model predictions based on gap_tolerance.
+        Calculates confidence score for a proposed tag span based on the probabilities of the tokens in the span and the specified confidence mode.
 
         Parameters:
-            predictions (list[int]): The list of binary predictions for each text token in the window.
+            span_probabilities (list[float]): The list of probabilities for the tokens in the proposed span.
+
+        Returns:
+            float: The calculated confidence score for the proposed tag span.
+        """
+        match self.confidence_mode:
+            case "max":
+                return max(span_probabilities)
+            case "min":
+                return min(span_probabilities)
+            case "mean":
+                return sum(span_probabilities) / len(span_probabilities) if span_probabilities else 0.0
+            case "product":
+                product = 1.0
+                for prob in span_probabilities:
+                    product *= prob
+                return product
+            case _:
+                raise ValueError(f"Invalid confidence mode: {self.confidence_mode}. Supported modes are 'max', 'min', 'mean', 'product'.")
+
+    def extract_char_spans(self, probabilities: list[float], offset_mapping: list[tuple[int, int]]) -> list[tuple[int, int, list[float]]]:
+        """
+        Finds character (start, end) spans of text that correspond to positive model predictions within
+        a single window, along with the per-token probabilities making up each span (used afterward to
+        compute confidence once spans from all windows have been merged). Accounts for gaps in model
+        predictions based on gap_tolerance.
+
+        Parameters:
+            probabilities (list[float]): The list of tag probabilities for each text token in the window.
             offset_mapping (list[tuple[int, int]]): The list of character offsets for each token in the window.
 
         Returns:
-            list[tuple[int, int]]: A list of (start_char, end_char) spans.
+            list[tuple[int, int, list[float]]]: A list of (start_char, end_char, span_probabilities).
         """
         gap_tolerance = self.gap_tolerance
-
+        running_span_probs = []
         char_spans = []
         start_char, end_char = None, None
         gap_count = 0
 
-        for pred, (offset_start, offset_end) in zip(predictions, offset_mapping[-len(predictions)-1:-1], strict=True):
-            if pred == 1:
+        for prob, (offset_start, offset_end) in zip(probabilities, offset_mapping[-len(probabilities)-1:-1], strict=True):
+            if prob >= self.threshold:
+                running_span_probs.append(prob)
                 if start_char is None:
                     start_char = offset_start
-                    end_char = offset_end
-                    gap_count = 0
-                else:
-                    if gap_count > 0:
-                        end_char = offset_end
-                        gap_count = 0
-                    else:
-                        end_char = offset_end
+                end_char = offset_end
+                gap_count = 0
             else:
                 if start_char is not None:
                     gap_count += 1
                     if gap_count > gap_tolerance:
-                        char_spans.append((start_char, end_char))
+                        char_spans.append((start_char, end_char, running_span_probs))
                         start_char, end_char = None, None
                         gap_count = 0
+                        running_span_probs = []
 
         if start_char is not None:
-            char_spans.append((start_char, end_char))
+            char_spans.append((start_char, end_char, running_span_probs))
 
         return char_spans
 

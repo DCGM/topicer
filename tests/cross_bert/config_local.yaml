@@ -9,3 +9,4 @@ topicer:
     stride: 32
     normalize_score: true
     soft_max_score: true
+    confidence_mode: min
