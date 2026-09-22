@@ -1,11 +1,12 @@
 topicer:
   cls: CrossBertTopicer
   config:
-    model: ./models/example_model
-    threshold: 0.5
+    model: ./traced-models/mmbert-best
+    threshold: 0.32
     device: cuda
     max_length: 512
     gap_tolerance: 0
+    stride: 32
     normalize_score: true
-    soft_max_score: false
+    soft_max_score: true
     confidence_mode: min

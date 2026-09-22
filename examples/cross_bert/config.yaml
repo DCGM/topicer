@@ -5,6 +5,7 @@ topicer:
     threshold: 0.5
     device: cuda
     max_length: 350
+    stride: 32
     gap_tolerance: 5
     normalize_score: true
     soft_max_score: true
