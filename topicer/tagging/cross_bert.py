@@ -51,21 +51,40 @@ def cross_dot_product(
     return similarity_matrix
 
 
-def merge_spans(spans: list[tuple[int, int, list[float]]]) -> list[tuple[int, int, list[float]]]:
-    """Merge overlapping/touching (start, end, token_probabilities) character spans, e.g. from
-    predictions on overlapping tokenizer windows. Probabilities of merged spans are concatenated
-    so confidence can still be computed correctly over the full merged span afterward."""
+def _merge_token_entries(
+    a: list[tuple[int, int, float]], b: list[tuple[int, int, float]]
+) -> list[tuple[int, int, float]]:
+    """Combines two windows' per-token (offset_start, offset_end, probability) entries for the same
+    span. Windows are slices of one shared base tokenization (see prepare_chunks), so a token seen by
+    both windows -- i.e. one that falls in the stride overlap region -- has identical offsets in both;
+    for such a token we keep the higher of the two probabilities rather than counting it twice, so a
+    span's confidence doesn't depend on how many windows happened to cover a given token."""
+    by_offset: dict[tuple[int, int], float] = {}
+    for offset_start, offset_end, prob in a + b:
+        key = (offset_start, offset_end)
+        if key not in by_offset or prob > by_offset[key]:
+            by_offset[key] = prob
+    return [(offset_start, offset_end, prob) for (offset_start, offset_end), prob in by_offset.items()]
+
+
+def merge_spans(
+    spans: list[tuple[int, int, list[tuple[int, int, float]]]]
+) -> list[tuple[int, int, list[tuple[int, int, float]]]]:
+    """Merge overlapping/touching (start, end, token_entries) character spans, e.g. from predictions
+    on overlapping tokenizer windows. token_entries of merged spans are combined via
+    _merge_token_entries so confidence can still be computed correctly over the full merged span
+    afterward, without double-counting tokens in the stride overlap region."""
     if not spans:
         return []
 
     spans = sorted(spans, key=lambda span: (span[0], span[1]))
     merged = [spans[0]]
-    for start, end, probs in spans[1:]:
-        last_start, last_end, last_probs = merged[-1]
+    for start, end, entries in spans[1:]:
+        last_start, last_end, last_entries = merged[-1]
         if start <= last_end:  # overlapping or touching
-            merged[-1] = (last_start, max(last_end, end), last_probs + probs)
+            merged[-1] = (last_start, max(last_end, end), _merge_token_entries(last_entries, entries))
         else:
-            merged.append((start, end, probs))
+            merged.append((start, end, entries))
     return merged
 
 
@@ -274,14 +293,15 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
 
         chunks = self.prepare_chunks(chunk_text, tag_text)
 
-        all_spans: list[tuple[int, int, list[float]]] = []
+        all_spans: list[tuple[int, int, list[tuple[int, int, float]]]] = []
         for chunk in chunks:
             tag_probabilities = self.run_chunk(chunk).cpu().tolist()
             all_spans.extend(self.extract_char_spans(tag_probabilities, chunk["offset_mapping"]))
 
         # Overlapping windows can each independently (re)detect the same or a partially overlapping
-        # span -- merge before returning, concatenating their per-token probabilities so confidence
-        # reflects the full merged span rather than just whichever window's slice was seen first.
+        # span -- merge before returning. Tokens in the stride overlap region are seen by two windows;
+        # merge_spans keeps only the higher probability for those (see _merge_token_entries) rather
+        # than counting them twice, so confidence reflects the full merged span correctly.
         merged_spans = merge_spans(all_spans)
 
         return [
@@ -289,10 +309,10 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
                 tag=tag,
                 span_start=start,
                 span_end=end,
-                confidence=self.calculate_confidence(probs),
+                confidence=self.calculate_confidence([prob for _, _, prob in entries]),
                 reason=None,
             )
-            for start, end, probs in merged_spans
+            for start, end, entries in merged_spans
         ]
 
     def calculate_confidence(self, span_probabilities: list[float]) -> float:
@@ -320,29 +340,32 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
             case _:
                 raise ValueError(f"Invalid confidence mode: {self.confidence_mode}. Supported modes are 'max', 'min', 'mean', 'product'.")
 
-    def extract_char_spans(self, probabilities: list[float], offset_mapping: list[tuple[int, int]]) -> list[tuple[int, int, list[float]]]:
+    def extract_char_spans(
+        self, probabilities: list[float], offset_mapping: list[tuple[int, int]]
+    ) -> list[tuple[int, int, list[tuple[int, int, float]]]]:
         """
         Finds character (start, end) spans of text that correspond to positive model predictions within
-        a single window, along with the per-token probabilities making up each span (used afterward to
-        compute confidence once spans from all windows have been merged). Accounts for gaps in model
-        predictions based on gap_tolerance.
+        a single window, along with the per-token (offset_start, offset_end, probability) entries making
+        up each span (used afterward to compute confidence once spans from all windows have been merged
+        -- the offsets let overlapping windows be deduplicated by token position rather than
+        double-counted). Accounts for gaps in model predictions based on gap_tolerance.
 
         Parameters:
             probabilities (list[float]): The list of tag probabilities for each text token in the window.
             offset_mapping (list[tuple[int, int]]): The list of character offsets for each token in the window.
 
         Returns:
-            list[tuple[int, int, list[float]]]: A list of (start_char, end_char, span_probabilities).
+            list[tuple[int, int, list[tuple[int, int, float]]]]: A list of (start_char, end_char, token_entries).
         """
         gap_tolerance = self.gap_tolerance
-        running_span_probs = []
+        running_entries: list[tuple[int, int, float]] = []
         char_spans = []
         start_char, end_char = None, None
         gap_count = 0
 
         for prob, (offset_start, offset_end) in zip(probabilities, offset_mapping[-len(probabilities)-1:-1], strict=True):
             if prob >= self.threshold:
-                running_span_probs.append(prob)
+                running_entries.append((offset_start, offset_end, prob))
                 if start_char is None:
                     start_char = offset_start
                 end_char = offset_end
@@ -351,13 +374,13 @@ class CrossBertTopicer(BaseTopicer, ConfigurableMixin):
                 if start_char is not None:
                     gap_count += 1
                     if gap_count > gap_tolerance:
-                        char_spans.append((start_char, end_char, running_span_probs))
+                        char_spans.append((start_char, end_char, running_entries))
                         start_char, end_char = None, None
                         gap_count = 0
-                        running_span_probs = []
+                        running_entries = []
 
         if start_char is not None:
-            char_spans.append((start_char, end_char, running_span_probs))
+            char_spans.append((start_char, end_char, running_entries))
 
         return char_spans
 
