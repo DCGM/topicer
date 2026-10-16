@@ -5,6 +5,7 @@ from .tagging.gliner import GlinerTopicer
 from .llm import OpenAsyncAPI, OllamaAsyncAPI
 from .embedding import LocalEmbedder
 from .embedding.default_service import DefaultEmbeddingService
+from .embedding.openai_service import OpenAIEmbeddingService
 from .tagging.cross_bert import CrossBertTopicer
 from .topic_discovery import FastTopicDiscovery
 from .database.weaviate_service import WeaviateService

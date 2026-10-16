@@ -229,3 +229,17 @@ async def test_find_similar_text_chunks_ranking_integration(integration_service)
     # If the cake (C) was returned, it must be after them
     if len(results) > 2:
         assert "cake" in results[2].text
+
+
+@pytest.mark.unit
+async def test_find_similar_text_chunks_targets_the_configured_vector_unit(mock_service):
+    # A collection with several named vectors needs the target; it must be the embedding model's vector.
+    service, mock_client = mock_service
+    service.vector_name = "Qwen3_Embedding_0_6B"
+    mock_collection = MagicMock()
+    mock_client.collections.use = MagicMock(return_value=mock_collection)
+    mock_collection.query.hybrid = AsyncMock(return_value=MagicMock(objects=[]))
+
+    await service.find_similar_text_chunks(text="q", embedding=np.array([0.1, 0.2]))
+
+    assert mock_collection.query.hybrid.call_args.kwargs["target_vector"] == "Qwen3_Embedding_0_6B"
