@@ -56,6 +56,16 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         voluntary=True,
     )
 
+    # Named vector of the chunks used for similarity search and returned as chunk embeddings.
+    vector_name = ConfigurableValue(
+        desc=(
+            "Named vector of the chunks collection that similarity searches target and get_embeddings reads. "
+            "It must match the embedding service's model (semANT: Qwen3_Embedding_0_6B with Qwen/Qwen3-Embedding-0.6B)."
+        ),
+        user_default="default",
+        voluntary=True,
+    )
+
     # Max chunks to retrieve per request
     chunks_limit = ConfigurableValue(
         desc="Max number of chunks to retrieve per request",
@@ -196,6 +206,7 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
                 return_properties=[self.chunk_text_prop],
                 limit=top_k,
                 max_vector_distance=self.max_vector_distance,
+                target_vector=self.vector_name,
             )
 
         for obj in response.objects:
@@ -224,12 +235,12 @@ class WeaviateService(BaseDBConnection, ConfigurableMixin):
         with self._console.status("[bold green]Fetching embeddings from Weaviate", spinner="dots"):
             response = await chunks_collection.query.fetch_objects_by_ids(
                 ids=uuids,
-                include_vector=True,
+                include_vector=[self.vector_name],
                 return_properties=[],
             )
 
         vector_map = {
-            obj.uuid: obj.vector.get("default")
+            obj.uuid: obj.vector.get(self.vector_name)
             for obj in response.objects
             if obj.vector
         }

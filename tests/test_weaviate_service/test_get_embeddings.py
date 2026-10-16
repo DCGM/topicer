@@ -190,3 +190,19 @@ async def test_get_embeddings_object_exists_but_no_vector_integration(integratio
         
     assert "Embeddings not found" in str(excinfo.value)
     assert str(chunk_id) in str(excinfo.value)
+
+@pytest.mark.unit
+async def test_get_embeddings_reads_the_configured_vector_unit(mock_service):
+    service, mock_client = mock_service
+    service.vector_name = "Qwen3_Embedding_0_6B"
+    chunk_id = uuid4()
+    obj = MagicMock(uuid=chunk_id, vector={"Qwen3_Embedding_0_6B": [0.5, 0.5], "default": [9.0, 9.0]})
+    mock_collection = MagicMock()
+    mock_client.collections.use = MagicMock(return_value=mock_collection)
+    mock_collection.query.fetch_objects_by_ids = AsyncMock()
+    mock_collection.query.fetch_objects_by_ids.return_value.objects = [obj]
+
+    result = await service.get_embeddings([TextChunk(id=chunk_id, text="t")])
+
+    np.testing.assert_array_equal(result, [[0.5, 0.5]])
+    assert mock_collection.query.fetch_objects_by_ids.call_args.kwargs["include_vector"] == ["Qwen3_Embedding_0_6B"]
