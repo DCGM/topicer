@@ -1,16 +1,26 @@
 import asyncio
 import json
+from contextlib import aclosing
+from typing import AsyncGenerator
 from topicer.base import BaseTopicer, MissingServiceError
-from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals
+from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals, TagProposalUsageSummary
+from topicer.llm.usage import UsageCollector, collect_usage
 from topicer.tagging.tagging_schemas import LLMTagProposalList
 import logging
 from topicer.schemas import DBRequest
 from classconfig import ConfigurableMixin, ConfigurableValue
+from classconfig.validators import MinValueIntegerValidator
 from topicer.utils.fuzzy_matcher import FuzzyMatcher
 
 class LLMTopicer(BaseTopicer, ConfigurableMixin):
     span_granularity: str = ConfigurableValue(
         desc="Granularity level for span extraction", user_default="phrase")
+    max_chunks_ceiling: int = ConfigurableValue(
+        desc="Safety ceiling for the per-request max_chunks of propose_tags_in_db_stream; larger requests are rejected.",
+        user_default=200, voluntary=True, validator=MinValueIntegerValidator(1))
+    max_concurrent_chunks: int = ConfigurableValue(
+        desc="Maximum number of chunks processed concurrently by propose_tags_in_db_stream.",
+        user_default=10, voluntary=True, validator=MinValueIntegerValidator(1))
 
     def __post_init__(self) -> None:
         self.fuzzy_matcher: FuzzyMatcher = FuzzyMatcher(max_dist_ratio=0.2)
@@ -144,32 +154,127 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
 
         return [p for p in all_proposals if p.tag_span_proposals]
 
-    async def propose_tags_in_db_stream(self, tag: Tag, db_request: DBRequest):
+    def validate_max_chunks(self, max_chunks: int | None) -> None:
+        """Raise ValueError when an explicit per-request max_chunks is not a positive integer within the safety ceiling."""
+        if max_chunks is None:
+            return
+        if isinstance(max_chunks, bool) or not isinstance(max_chunks, int) or max_chunks < 1:
+            raise ValueError(f"max_chunks must be a positive integer, got {max_chunks!r}.")
+        if max_chunks > self.max_chunks_ceiling:
+            raise ValueError(f"max_chunks={max_chunks} exceeds this configuration's limit of {self.max_chunks_ceiling}.")
+
+    async def _propose_tags_bounded(self, text_chunks: list[TextChunk], tag: Tag, collector: UsageCollector
+                                    ) -> AsyncGenerator[TextChunkWithTagSpanProposals | Exception, None]:
+        """
+        Run propose_tags on the chunks with at most `max_concurrent_chunks` tasks in flight, yielding results
+        (or the exception of a failed chunk) as they complete. Outstanding tasks are cancelled and awaited
+        when the generator is closed or cancelled.
+        """
+        async def run(chunk: TextChunk) -> TextChunkWithTagSpanProposals:
+            with collect_usage(collector):
+                return await self.propose_tags(text_chunk=chunk, tags=[tag])
+
+        remaining = iter(text_chunks)
+        pending: set[asyncio.Task] = set()
+
+        def fill() -> None:
+            while len(pending) < self.max_concurrent_chunks:
+                chunk = next(remaining, None)
+                if chunk is None:
+                    return
+                pending.add(asyncio.ensure_future(run(chunk)))
+
+        try:
+            fill()
+            while pending:
+                done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+                fill()
+                for task in done:
+                    exc = task.exception()
+                    yield exc if exc is not None else task.result()
+        finally:
+            for task in pending:
+                task.cancel()
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
+
+    async def propose_tags_in_db_stream(self, tag: Tag, db_request: DBRequest, max_chunks: int | None = None
+                                        ) -> AsyncGenerator[TextChunkWithTagSpanProposals | TagProposalUsageSummary, None]:
+        """
+        Yield chunks with proposals as their LLM calls complete, then one TagProposalUsageSummary.
+
+        :param max_chunks: Maximum number of candidate chunks to run inference on. When None, the database
+            connection's configured retrieval limit (`chunks_limit`) applies.
+        """
         if self.db_connection is None:
             raise MissingServiceError("DB connection is not set for LLMTopicer.")
+        self.validate_max_chunks(max_chunks)
 
-        query_parts = [tag.name]
-        if tag.description:
-            query_parts.append(tag.description)
-        if tag.examples:
-            query_parts.extend(tag.examples)
-        query_text = "\n".join(query_parts)
+        if max_chunks is not None:
+            limit, limit_source = max_chunks, "request"
+        else:
+            limit = getattr(self.db_connection, "chunks_limit", None)
+            limit_source = "config" if limit is not None else None
 
-        tag_embedding = self.embedding_service.embed_queries([query_text])[0]
+        collector = UsageCollector()
+        summary = TagProposalUsageSummary(status="complete", tag_id=tag.id, max_chunks=limit,
+                                          max_chunks_source=limit_source)
+        failed_chunks = 0
+        delivered = False
+        try:
+            try:
+                query_parts = [tag.name]
+                if tag.description:
+                    query_parts.append(tag.description)
+                if tag.examples:
+                    query_parts.extend(tag.examples)
+                query_text = "\n".join(query_parts)
 
-        async with self.db_connection as db_conn:
-            text_chunks: list[TextChunk] = await db_conn.find_similar_text_chunks(
-                text=tag.name,
-                embedding=tag_embedding,
-                db_request=db_request
-            )
+                tag_embedding = self.embedding_service.embed_queries([query_text])[0]
 
-        if not text_chunks:
-            logging.info(f"No similar text chunks found for tag '{tag.name}' in the database.")
-            return
+                # One extra candidate tells whether the limit actually excluded eligible chunks.
+                async with self.db_connection as db_conn:
+                    text_chunks: list[TextChunk] = await db_conn.find_similar_text_chunks(
+                        text=tag.name,
+                        embedding=tag_embedding,
+                        db_request=db_request,
+                        k=limit + 1 if limit is not None else None
+                    )
 
-        tasks = [self.propose_tags(text_chunk=chunk, tags=[tag]) for chunk in text_chunks]
-        for coro in asyncio.as_completed(tasks):
-            result = await coro
-            if result.tag_span_proposals:
-                yield result
+                if limit is not None and len(text_chunks) > limit:
+                    summary.candidates_truncated = True
+                    text_chunks = text_chunks[:limit]
+
+                if not text_chunks:
+                    logging.info(f"No similar text chunks found for tag '{tag.name}' in the database.")
+
+                # aclosing: closing this stream (client disconnect) cancels the in-flight LLM calls immediately
+                async with aclosing(self._propose_tags_bounded(text_chunks, tag, collector)) as results:
+                    async for result in results:
+                        summary.processed_chunks += 1
+                        if isinstance(result, Exception):
+                            failed_chunks += 1
+                            logging.error(f"Tag proposal failed for a chunk of tag {tag.id}: {result!r}")
+                        elif result.tag_span_proposals:
+                            yield result
+
+                if failed_chunks:
+                    summary.status = "failed" if failed_chunks == summary.processed_chunks else "partial"
+            except Exception as e:
+                logging.exception(f"Tag proposal stream for tag {tag.id} failed: {e!r}")
+                summary.status = "failed"
+
+            summary.limit_reached = limit is not None and summary.processed_chunks >= limit
+            summary.usage = collector.summary()
+            yield summary
+            delivered = True
+        finally:
+            if not delivered:
+                # The client will not receive the summary (disconnect or cancellation): keep a server-side record.
+                usage = collector.summary()
+                known_cost = sum(c.cost_usd for c in usage.calls if c.cost_usd is not None)
+                logging.warning(
+                    f"Tag proposal stream for tag {tag.id} closed before its usage summary was delivered: "
+                    f"processed_chunks={summary.processed_chunks}, attempted_calls={usage.attempted_calls}, "
+                    f"completed_calls={usage.completed_calls}, known_cost_usd={known_cost}, "
+                    f"calls_with_unknown_cost={sum(1 for c in usage.calls if c.cost_usd is None)}")

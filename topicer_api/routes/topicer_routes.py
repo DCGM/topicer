@@ -1,11 +1,12 @@
 import logging
 from typing import Sequence
 import asyncio
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, Query, status, Depends
 from fastapi.responses import RedirectResponse, StreamingResponse
 
+from topicer.llm.usage import collect_usage
 from topicer.schemas import (DBRequest, DiscoveredTopics, DiscoveredTopicsSparse, Tag, TextChunk,
-                             TextChunkWithTagSpanProposals)
+                             TextChunkWithTagSpanProposals, TextChunkWithTagSpanProposalsAndUsage)
 from topicer_api.topicers import LoadedTopicers, get_loaded_topicers
 
 
@@ -100,8 +101,9 @@ async def discover_topics_in_db_dense(config_name: str, db_request: DBRequest, n
     return result
 
 
-@topicer_router.post("/tags/propose/texts", summary="Propose tags on provided text chunk.")
-async def propose_tags(config_name: str, text_chunk: TextChunk, tags: list[Tag], loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)) -> TextChunkWithTagSpanProposals:
+@topicer_router.post("/tags/propose/texts", summary="Propose tags on provided text chunk.",
+                     description="The optional `usage` field lists every underlying LLM provider attempt of the request.")
+async def propose_tags(config_name: str, text_chunk: TextChunk, tags: list[Tag], loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)) -> TextChunkWithTagSpanProposalsAndUsage:
     if config_name not in loaded_topicers:
         logger.warning(f"Config {config_name} not found among loaded topicers: {list(loaded_topicers.keys())}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
@@ -110,13 +112,14 @@ async def propose_tags(config_name: str, text_chunk: TextChunk, tags: list[Tag],
     logger.info(f"Using topicer config: {config_name}")
 
     try:
-        result = await topicer_model.propose_tags(text_chunk=text_chunk, tags=tags)
+        with collect_usage() as usage:
+            result = await topicer_model.propose_tags(text_chunk=text_chunk, tags=tags)
         logger.info(f"Successfully proposed tags in texts using config: {config_name}")
     except NotImplementedError:
         logger.warning(f"Tag proposal in texts not implemented for config: {config_name}")
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Method not applicable to {config_name}.")
 
-    return result
+    return TextChunkWithTagSpanProposalsAndUsage(**result.model_dump(), usage=usage.summary())
 
 
 @topicer_router.post("/tags/propose/db", summary="Propose tags on texts stored in database.")
@@ -185,19 +188,35 @@ async def find_most_probable_tag(
 @topicer_router.post(
     "/tags/propose/db/stream",
     summary="Propose tags on texts from database, streaming results as they complete (NDJSON).",
+    description=(
+        "Streams `application/x-ndjson`, one JSON object per line. Every line except the last is a "
+        "`TextChunkWithTagSpanProposals` (only chunks with proposals are sent). A normally completed stream ends with "
+        "exactly one `TagProposalUsageSummary`, recognizable by `\"event\": \"usage_summary\"`, which is sent even "
+        "when there are no proposals and reports the processing status, the applied chunk limit and the usage of "
+        "every underlying LLM call. A stream without it was interrupted and its usage is unknown. "
+        "Returns 422 when `max_chunks` is not positive or exceeds the config's safety ceiling."
+    ),
     response_class=StreamingResponse,
     responses={
         200: {
-            "content": {
-                "application/x-ndjson": {
-                    "schema": {"$ref": "#/components/schemas/TextChunkWithTagSpanProposals"},
-                }
-            },
-            "description": "Stream of TextChunkWithTagSpanProposals objects, one JSON object per line.",
-        }
+            # One NDJSON line; TagProposalUsageSummary is registered in components by topicer_api.main.
+            "content": {"application/x-ndjson": {"schema": {"oneOf": [
+                {"$ref": "#/components/schemas/TextChunkWithTagSpanProposals"},
+                {"$ref": "#/components/schemas/TagProposalUsageSummary"},
+            ]}}},
+            "description": "NDJSON stream of TextChunkWithTagSpanProposals lines terminated by one TagProposalUsageSummary line.",
+        },
     },
 )
-async def propose_tags_in_db_stream(config_name: str, tag: Tag, db_request: DBRequest, loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)) -> StreamingResponse:
+async def propose_tags_in_db_stream(
+        config_name: str,
+        tag: Tag,
+        db_request: DBRequest,
+        max_chunks: int | None = Query(
+            None, ge=1,
+            description="Maximum number of candidate chunks to run inference on for this tag. When omitted, the "
+                        "config's retrieval limit applies. Values above the config's `max_chunks_ceiling` are rejected with 422."),
+        loaded_topicers: LoadedTopicers = Depends(get_loaded_topicers)) -> StreamingResponse:
     if config_name not in loaded_topicers:
         logger.warning(f"Config {config_name} not found among loaded topicers: {list(loaded_topicers.keys())}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Config {config_name} not found.")
@@ -207,9 +226,19 @@ async def propose_tags_in_db_stream(config_name: str, tag: Tag, db_request: DBRe
     if not hasattr(topicer_model, "propose_tags_in_db_stream"):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Streaming not supported for {config_name}.")
 
+    # Validate before the stream starts, so an invalid limit never reaches inference.
+    if max_chunks is not None and not hasattr(topicer_model, "validate_max_chunks"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"max_chunks is not supported by {config_name}.")
+    try:
+        if max_chunks is not None:
+            topicer_model.validate_max_chunks(max_chunks)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
     async def generate():
         try:
-            async for result in topicer_model.propose_tags_in_db_stream(tag=tag, db_request=db_request):
+            async for result in topicer_model.propose_tags_in_db_stream(tag=tag, db_request=db_request, max_chunks=max_chunks):
                 yield result.model_dump_json() + "\n"
         except Exception as e:
             logger.error(f"Error during streaming tag proposal for config {config_name}: {e}")

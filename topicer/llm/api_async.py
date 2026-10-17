@@ -10,6 +10,7 @@ from ollama import AsyncClient
 from openai import AsyncOpenAI, RateLimitError
 from pydantic import BaseModel
 from topicer.base import BaseLLMService
+from topicer.llm.usage import meter_call, openai_usage
 
 
 class APIAsync(BaseLLMService, CreatableMixin):
@@ -36,6 +37,22 @@ class APIAsync(BaseLLMService, CreatableMixin):
         desc="Default model to use for requests.",
         user_default=None, voluntary=True
     )
+    provider: Optional[str] = ConfigurableValue(
+        desc="Provider name reported in LLM usage (e.g. openai, openrouter). Defaults to the adapter's provider.",
+        user_default=None, voluntary=True
+    )
+    prices: Optional[dict] = ConfigurableValue(
+        desc="Model prices in USD per million tokens used to estimate the cost of calls when the provider does not "
+             "report it: {model: {input_per_million: float, output_per_million: float}}.",
+        user_default=None, voluntary=True,
+        validator=lambda x: x is None or isinstance(x, dict)
+    )
+
+    default_provider: str = "unknown"
+
+    @property
+    def provider_name(self) -> str:
+        return self.provider or self.default_provider
 
     @abstractmethod
     async def process_single_request(self, text_chunk: str, instruction: str, output_type: Type[BaseModel] | None, model: str) -> str | BaseModel:
@@ -69,8 +86,16 @@ class APIAsync(BaseLLMService, CreatableMixin):
         for i, chunk in enumerate(text_chunks):
             tasks.append(asyncio.create_task(process_with_index(i, chunk)))
 
-        for o in asyncio.as_completed(tasks):
-            yield await o
+        try:
+            for o in asyncio.as_completed(tasks):
+                yield await o
+        finally:
+            # Cancelling the caller does not cancel the tasks behind as_completed; do not leave provider calls running.
+            unfinished = [t for t in tasks if not t.done()]
+            for t in unfinished:
+                t.cancel()
+            if unfinished:
+                await asyncio.gather(*unfinished, return_exceptions=True)
 
     async def process_text_chunks(self, text_chunks: list[str], instruction: str, model: str | None = None) -> list[str]:
         if model is None:
@@ -104,6 +129,7 @@ class OpenAsyncAPI(APIAsync):
     """
     Handles asynchronous requests to the OpenAI API.
     """
+    default_provider = "openai"
 
     def __post_init__(self):
         self.client = AsyncOpenAI(
@@ -115,21 +141,22 @@ class OpenAsyncAPI(APIAsync):
         async with self.semaphore:
             while True:
                 try:
-                    if output_type is None:
-                        response = await self.client.responses.create(
-                            model=model,
-                            instructions=instruction,
-                            input=text_chunk
-                        )
-                        return response.output_text
-                    else:
-                        response = await self.client.responses.parse(
-                            model=model,
-                            instructions=instruction,
-                            input=text_chunk,
-                            text_format=output_type
-                        )
-                        return response.output_parsed
+                    with meter_call(self.provider_name, model, self.prices) as meter:
+                        if output_type is None:
+                            response = await self.client.responses.create(
+                                model=model,
+                                instructions=instruction,
+                                input=text_chunk
+                            )
+                        else:
+                            response = await self.client.responses.parse(
+                                model=model,
+                                instructions=instruction,
+                                input=text_chunk,
+                                text_format=output_type
+                            )
+                        meter.success(*openai_usage(response))
+                    return response.output_text if output_type is None else response.output_parsed
                 except RateLimitError:
                     logging.error(f"Rate limit reached. Waiting for {self.pool_interval} seconds.")
                     await asyncio.sleep(self.pool_interval)
@@ -139,6 +166,7 @@ class OllamaAsyncAPI(APIAsync):
     """
     Handles asynchronous requests to the Ollama API.
     """
+    default_provider = "ollama"
 
     def __post_init__(self):
         self.client = AsyncClient(host=self.base_url)
@@ -146,14 +174,16 @@ class OllamaAsyncAPI(APIAsync):
 
     async def process_single_request(self, text_chunk: str, instruction: str, output_type: Type[BaseModel] | None, model: str) -> str | BaseModel:
         async with self.semaphore:
-            response = await self.client.chat(
-                model=model,
-                messages=[
-                    {"role": "system", "content": instruction},
-                    {"role": "user", "content": text_chunk}
-                ],
-                format=output_type if output_type is None else output_type.model_json_schema()
-            )
+            with meter_call(self.provider_name, model, self.prices) as meter:
+                response = await self.client.chat(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": instruction},
+                        {"role": "user", "content": text_chunk}
+                    ],
+                    format=output_type if output_type is None else output_type.model_json_schema()
+                )
+                meter.success(getattr(response, "prompt_eval_count", None), getattr(response, "eval_count", None))
 
             res = response.message.content
             if output_type is not None:
