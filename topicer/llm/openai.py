@@ -6,6 +6,7 @@ import asyncio
 from rich.console import Console
 
 from topicer.base import BaseLLMService
+from topicer.llm.usage import meter_call, openai_usage
 
 
 class OpenAIService(BaseLLMService, ConfigurableMixin):
@@ -51,18 +52,20 @@ class OpenAIService(BaseLLMService, ConfigurableMixin):
 
     async def process_text_chunks(self, text_chunks: list[str], instruction: str, model: str | None = None) -> list[str]:
         async def process_single_chunk(text_chunk: str) -> str:
-            response = await self.client.chat.completions.create(
-                model=model or self.model,
-                messages=[
-                    {"role": "system", "content": instruction},
-                    {"role": "user", "content": text_chunk}
-                ],
-                
-                # enforce json output
-                response_format={"type": "json_object"},
-                # for results consistency
-                temperature=0
-            )
+            with meter_call("openai", model or self.model) as meter:
+                response = await self.client.chat.completions.create(
+                    model=model or self.model,
+                    messages=[
+                        {"role": "system", "content": instruction},
+                        {"role": "user", "content": text_chunk}
+                    ],
+
+                    # enforce json output
+                    response_format={"type": "json_object"},
+                    # for results consistency
+                    temperature=0
+                )
+                meter.success(*openai_usage(response))
             return response.choices[0].message.content or ""
 
         tasks = [process_single_chunk(tc) for tc in text_chunks]
@@ -73,15 +76,17 @@ class OpenAIService(BaseLLMService, ConfigurableMixin):
     async def process_text_chunks_structured(self, text_chunks: list[str], instruction: str, output_type: type[BaseModel], model: str | None = None) -> list[BaseModel]:
 
         async def process_single_chunk(text_chunk: str) -> BaseModel:
-            response = await self.client.responses.parse(
-                model=model or self.model,
-                instructions=instruction,
-                input=text_chunk,
-                text_format=output_type,
-                reasoning={
-                    "effort": self.reasoning
-                }
-            )
+            with meter_call("openai", model or self.model) as meter:
+                response = await self.client.responses.parse(
+                    model=model or self.model,
+                    instructions=instruction,
+                    input=text_chunk,
+                    text_format=output_type,
+                    reasoning={
+                        "effort": self.reasoning
+                    }
+                )
+                meter.success(*openai_usage(response))
             return response.output_parsed
 
         with self._console.status("[bold green]Waiting for response from OpenAI LLM model", spinner="dots"):

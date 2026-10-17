@@ -1,8 +1,10 @@
 import logging
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
+from pydantic.json_schema import models_json_schema
 
 from topicer.base import BaseDBConnection
+from topicer.schemas import TagProposalUsageSummary
 from topicer_api.routes import topicer_router
 from topicer_api.topicers import load_topicers
 
@@ -31,3 +33,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="TopicerAPI", lifespan=lifespan)
 app.include_router(topicer_router, prefix="/v1")
+
+
+def openapi():
+    """OpenAPI schema including the models only referenced by the NDJSON stream response (not by a response_model)."""
+    if app.openapi_schema is None:
+        schema = FastAPI.openapi(app)
+        _, defs = models_json_schema([(TagProposalUsageSummary, "serialization")],
+                                     ref_template="#/components/schemas/{model}")
+        components = schema.setdefault("components", {}).setdefault("schemas", {})
+        for name, model_schema in defs.get("$defs", {}).items():
+            components.setdefault(name, model_schema)
+    return app.openapi_schema
+
+
+app.openapi = openapi

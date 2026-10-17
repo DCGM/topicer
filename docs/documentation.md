@@ -78,26 +78,92 @@ async def discover_topics_in_db_dense(db_request, n=None)
 
 async def propose_tags(text_chunk, tags)
 async def propose_tags_in_db(tag, db_request)
-async def propose_tags_in_db_stream(tag, db_request)   # async generator
+async def propose_tags_in_db_stream(tag, db_request, max_chunks=None)   # async generator
 ```
 
 Methods that are not implemented raise `NotImplementedError`.
 
 ### `propose_tags_in_db_stream`
 
-A new async generator implemented by `LLMTopicer`. It performs the same retrieval
+An async generator implemented by `LLMTopicer`. It performs the same retrieval
 + LLM tagging pipeline as `propose_tags_in_db`, but yields each
-`TextChunkWithTagSpanProposals` as soon as its LLM call finishes
-(`asyncio.as_completed` under the hood). Empty proposals are filtered out.
+`TextChunkWithTagSpanProposals` as soon as its LLM call finishes. Chunks without
+proposals are not yielded. The last item is always one `TagProposalUsageSummary`
+(see [LLM usage accounting](#llm-usage-accounting)).
+
+* `max_chunks` – maximum number of candidate chunks to run inference on. Retrieval
+  asks for `max_chunks + 1` candidates (in similarity order) so the summary can tell
+  whether the limit excluded eligible chunks. When `None`, the database connection's
+  `chunks_limit` applies. Values that are not positive integers or exceed the topicer's
+  `max_chunks_ceiling` raise `ValueError` (check upfront with `validate_max_chunks`).
+* At most `max_concurrent_chunks` chunks are processed concurrently. Closing or
+  cancelling the generator cancels and awaits the outstanding LLM calls.
+* A failing chunk does not stop the stream; it counts as processed and the summary
+  status becomes `partial` (or `failed` when every chunk failed).
 
 Typical usage:
 
 ```python
-async for chunk_with_proposals in method.propose_tags_in_db_stream(tag, db_request):
-    handle(chunk_with_proposals)
+async for event in method.propose_tags_in_db_stream(tag, db_request, max_chunks=40):
+    if isinstance(event, TagProposalUsageSummary):
+        handle_usage(event)
+    else:
+        handle(event)
 ```
 
 This dramatically reduces time-to-first-result for large collections.
+
+### LLM usage accounting
+
+The LLM adapters (`OpenAsyncAPI`, `OllamaAsyncAPI`, `OpenAIService`) record every
+underlying provider attempt (a retried request is several attempts) as an
+`LLMCallUsage` in the collector opened by `topicer.llm.usage.collect_usage()`:
+
+```python
+with collect_usage() as usage:
+    result = await topicer.propose_tags(text_chunk, tags)
+print(usage.summary())   # LLMUsage
+```
+
+| Field | Meaning |
+|-------|---------|
+| `provider`, `model` | Adapter provider (`openai`, `ollama`, or the configured `provider`) and model |
+| `outcome` | `success`, `error`, `cancelled` |
+| `input_tokens`, `output_tokens` | Provider-reported counts; `null` when unavailable |
+| `usage_source` | `reported` (both counts reported) or `unknown`; `estimated` is reserved |
+| `cost_usd` | Cost in USD; `null` when unknown, **never a fabricated zero** |
+| `cost_source` | `reported` (provider returned it, e.g. OpenRouter `usage.cost`), `estimated` (reported tokens × configured `prices`), `unknown` |
+
+Failed and cancelled attempts are recorded with unknown usage and cost because the
+provider may have billed them. No prompts, texts or credentials are recorded.
+
+`LLMUsage` aggregates the calls: `attempted_calls`, `completed_calls`,
+`failed_calls` (error or cancelled), `calls`.
+
+`TagProposalUsageSummary` (terminal stream event):
+
+| Field | Meaning |
+|-------|---------|
+| `event` | Always `"usage_summary"`; chunk results have no `event` field |
+| `status` | `complete`, `partial` (some chunks failed), `failed` (all chunks or retrieval failed) |
+| `tag_id` | The processed tag |
+| `max_chunks`, `max_chunks_source` | Effective limit and whether it came from the `request` or the `config` (`chunks_limit`) |
+| `processed_chunks` | Chunks for which inference was attempted, including empty results and failures |
+| `limit_reached` | `processed_chunks` equals the effective limit (even if no more candidates existed) |
+| `candidates_truncated` | Retrieval found more eligible candidates than the limit |
+| `usage` | `LLMUsage` of all calls of the stream |
+
+Cost estimates use server-side prices configured on the LLM service:
+
+```yaml
+llm_service:
+  cls: OpenAsyncAPI
+  config:
+    default_model: "gpt-5.4-mini"
+    provider: "openrouter"          # optional, reported in usage (default: openai)
+    prices:                          # optional, USD per million tokens
+      gpt-5.4-mini: {input_per_million: 0.25, output_per_million: 2.0}
+```
 
 ---
 
@@ -187,18 +253,28 @@ FastAPI server, served by `topicer_api/run.py`.
 | POST | `/v1/topics/discover/texts/dense`  | Dense topic discovery on supplied texts |
 | POST | `/v1/topics/discover/db/sparse`    | Sparse topic discovery on DB-stored chunks |
 | POST | `/v1/topics/discover/db/dense`     | Dense topic discovery on DB-stored chunks |
-| POST | `/v1/tags/propose/texts`           | Tag proposal on a supplied `TextChunk` |
+| POST | `/v1/tags/propose/texts`           | Tag proposal on a supplied `TextChunk`, with optional `usage` (`LLMUsage`) |
 | POST | `/v1/tags/propose/db`              | Tag proposal on DB-stored chunks (single response) |
 | POST | `/v1/tags/propose/db/stream`       | Tag proposal on DB-stored chunks, **streaming NDJSON** |
 
 #### `POST /v1/tags/propose/db/stream`
 
 * Content type: `application/x-ndjson`
-* Each line is a JSON-serialized `TextChunkWithTagSpanProposals` object,
-  emitted as soon as the corresponding LLM call resolves.
+* Query parameters: `config_name` (required) and optional `max_chunks` – the maximum
+  number of candidate chunks processed for this tag (see `propose_tags_in_db_stream`).
+  When omitted, the config's retrieval limit (`chunks_limit`) applies.
+* Every line except the last is a JSON-serialized `TextChunkWithTagSpanProposals`
+  object, emitted as soon as the corresponding LLM call resolves (chunks without
+  proposals are not sent).
+* A normally completed stream ends with exactly one `TagProposalUsageSummary` line
+  (`"event": "usage_summary"`), also when there are no proposals. Clients distinguish
+  it by the `event` field. A stream that ends without it was interrupted and its
+  usage is unknown. OpenAPI documents the line as `oneOf` both schemas.
 * Returns HTTP 404 if `config_name` is unknown.
 * Returns HTTP 409 if the loaded topicer does not implement
   `propose_tags_in_db_stream` (currently only `LLMTopicer` does).
+* Returns HTTP 422, before any inference, if `max_chunks` is not a positive integer or
+  exceeds the config's `max_chunks_ceiling` (`LLMTopicer` config, default 200).
 
 Example client (Python / `httpx`):
 
@@ -207,12 +283,16 @@ import httpx, json
 
 with httpx.stream("POST",
                  "http://localhost:8000/v1/tags/propose/db/stream",
-                 params={"config_name": "llm_default"},
+                 params={"config_name": "llm_default", "max_chunks": 40},
                  json={"tag": tag.model_dump(mode="json"),
                        "db_request": {"collection_id": str(coll_id)}}) as r:
     for line in r.iter_lines():
         if line:
-            yield json.loads(line)
+            event = json.loads(line)
+            if event.get("event") == "usage_summary":
+                handle_usage(event)
+            else:
+                yield event
 ```
 
 Swagger UI: `http://localhost:8000/docs`.

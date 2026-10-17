@@ -119,7 +119,9 @@ Topicer supports multiple tag proposal methods:
 * The LLM returns only `tag_id` (UUID) instead of the full tag object,
   which reduces token usage and prevents schema hallucination;
   unknown ids are skipped with a warning
-* Supports incremental streaming via `propose_tags_in_db_stream`
+* Supports incremental streaming via `propose_tags_in_db_stream`, with an optional per-request
+  `max_chunks` limit on processed candidates and a final usage summary
+* Reports the token usage and cost of every underlying LLM call (see `docs/documentation.md`)
 
 #### GLiNER-based Tagging (`GlinerTopicer`)
 
@@ -151,7 +153,7 @@ async def discover_topics_in_db_dense(db_request, n=None)
 
 async def propose_tags(text_chunk, tags)
 async def propose_tags_in_db(tag, db_request)
-async def propose_tags_in_db_stream(tag, db_request)  # async generator (LLMTopicer only)
+async def propose_tags_in_db_stream(tag, db_request, max_chunks=None)  # async generator (LLMTopicer only)
 ```
 
 If a method does not implement a requested function, a `NotImplemented` exception is raised.
@@ -229,7 +231,7 @@ Topicer includes a REST API built with **FastAPI**.
 * `/v1/topics/discover/db/dense`
 * `/v1/tags/propose/texts`
 * `/v1/tags/propose/db`
-* `/v1/tags/propose/db/stream` &nbsp;&nbsp;*(NDJSON stream of `TextChunkWithTagSpanProposals`, one per line; LLM-based topicers only)*
+* `/v1/tags/propose/db/stream` &nbsp;&nbsp;*(NDJSON stream of `TextChunkWithTagSpanProposals`, one per line, ending with a `usage_summary` event; LLM-based topicers only)*
 
 Swagger documentation is available at:
 
@@ -242,6 +244,11 @@ http://localhost:8000/docs
 `POST /v1/tags/propose/db/stream` returns `application/x-ndjson` — each line is a JSON-serialized
 `TextChunkWithTagSpanProposals` object emitted as soon as the underlying LLM call finishes,
 so clients can render results progressively without waiting for the whole batch.
+The optional `max_chunks` query parameter limits how many candidate chunks are processed for the tag
+(422 when not positive or above the config's `max_chunks_ceiling`). The stream ends with one
+`{"event": "usage_summary", ...}` line carrying the status, the applied limit (`limit_reached`,
+`candidates_truncated`) and the usage of every LLM call. `POST /v1/tags/propose/texts` returns the same
+per-call usage in an optional `usage` field.
 Only topicers that implement `propose_tags_in_db_stream` (currently `LLMTopicer`) accept this route;
 other configs return HTTP 409.
 
