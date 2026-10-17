@@ -139,8 +139,8 @@ provider may have billed them. No prompts, texts or credentials are recorded, an
 errors are logged only by exception class (and HTTP status), never by message.
 
 `OpenAsyncAPI` retries a rate-limited request at most `rate_limit_retries` times
-(default 3), waiting `pool_interval` seconds before each retry, and then raises the
-`RateLimitError`. Every attempt is metered.
+(default 3), waiting `pool_interval` seconds (default **5**) before each retry,
+and then raises the `RateLimitError`. Every attempt is metered.
 
 `LLMUsage` aggregates the calls: `attempted_calls`, `completed_calls`,
 `failed_calls` (error or cancelled), `calls`.
@@ -168,6 +168,7 @@ llm_service:
     default_model: "gpt-5.4-mini"
     provider: "openrouter"          # optional, reported in usage (default: openai)
     rate_limit_retries: 3            # optional, retries of a rate-limited request
+    pool_interval: 5                 # optional, seconds between rate-limit retries
     prices:                          # optional, USD per million tokens
       gpt-5.4-mini: {input_per_million: 0.25, output_per_million: 2.0}
 ```
