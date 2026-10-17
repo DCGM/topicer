@@ -21,7 +21,7 @@ class APIAsync(BaseLLMService, CreatableMixin):
     base_url: Optional[str] = ConfigurableValue(desc="Base URL for API.", user_default=None, voluntary=True)
     pool_interval: Optional[int] = ConfigurableValue(
         desc="Interval in seconds for checking status.",
-        user_default=300,
+        user_default=5,
         voluntary=True,
         validator=lambda x: x is None or x > 0)
     process_requests_interval: Optional[int] = ConfigurableValue(
