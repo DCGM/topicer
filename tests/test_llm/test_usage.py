@@ -190,3 +190,67 @@ def test_meter_without_success_report_is_unknown():
             pass
     assert collector.calls[0].outcome == "success"
     assert collector.calls[0].usage_source == "unknown"
+
+
+def rate_limit_error():
+    return RateLimitError(message="Rate limit", response=MagicMock(status_code=429), body=None)
+
+
+async def test_persistent_rate_limit_gives_up_after_retry_budget(open_api):
+    open_api.rate_limit_retries = 2
+    open_api.client.responses.parse.side_effect = rate_limit_error()
+    with collect_usage() as collector:
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            with pytest.raises(RateLimitError):
+                await run_parse(open_api, "priced-model")
+
+    assert open_api.client.responses.parse.call_count == 3
+    assert mock_sleep.call_count == 2
+    usage = collector.summary()
+    assert (usage.attempted_calls, usage.failed_calls) == (3, 3)
+    assert all(c.outcome == "error" and c.cost_source == "unknown" for c in usage.calls)
+
+
+async def test_zero_retries_raises_immediately(open_api):
+    open_api.rate_limit_retries = 0
+    open_api.client.responses.parse.side_effect = rate_limit_error()
+    with pytest.raises(RateLimitError):
+        await run_parse(open_api, "priced-model")
+    assert open_api.client.responses.parse.call_count == 1
+
+
+async def test_cancellation_during_rate_limit_backoff(open_api):
+    open_api.pool_interval = 3600
+    open_api.client.responses.parse.side_effect = rate_limit_error()
+    with collect_usage() as collector:
+        task = asyncio.create_task(run_parse(open_api, "priced-model"))
+        while not collector.calls:
+            await asyncio.sleep(0.001)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, timeout=1)
+
+    # The failed attempt stays metered; no further attempt was started.
+    assert [c.outcome for c in collector.calls] == ["error"]
+    assert open_api.client.responses.parse.call_count == 1
+
+
+async def test_openai_service_estimates_cost_from_prices():
+    from topicer.llm.openai import OpenAIService
+
+    service = OpenAIService(prices=PRICES, model="priced-model")
+    service._client = MagicMock()
+    service._client.responses.parse = AsyncMock(
+        return_value=openai_response(1_000_000, 1_000_000, parsed=OutputModel(summary="x")))
+    with collect_usage() as collector:
+        await service.process_text_chunks_structured(["a"], "instruction", OutputModel)
+
+    call = collector.calls[0]
+    assert (call.cost_usd, call.cost_source) == (pytest.approx(5.0), "estimated")
+
+
+def test_describe_exception_omits_message():
+    from topicer.llm.usage import describe_exception
+
+    assert describe_exception(ValueError("secret document text")) == "ValueError"
+    assert describe_exception(rate_limit_error()) == "RateLimitError (status 429)"

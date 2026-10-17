@@ -14,6 +14,11 @@ class OpenAIService(BaseLLMService, ConfigurableMixin):
         desc="Reasoning effort level for OpenAI calls", user_default="medium")
     model: str = ConfigurableValue(
         desc="OpenAI model to use", user_default="gpt-5-mini")
+    prices: dict | None = ConfigurableValue(
+        desc="Model prices in USD per million tokens used to estimate the cost of calls when the provider does not "
+             "report it: {model: {input_per_million: float, output_per_million: float}}.",
+        user_default=None, voluntary=True,
+        validator=lambda x: x is None or isinstance(x, dict))
 
     def __post_init__(self):
         # Jen příprava, zatím nic neotevíráme
@@ -52,7 +57,7 @@ class OpenAIService(BaseLLMService, ConfigurableMixin):
 
     async def process_text_chunks(self, text_chunks: list[str], instruction: str, model: str | None = None) -> list[str]:
         async def process_single_chunk(text_chunk: str) -> str:
-            with meter_call("openai", model or self.model) as meter:
+            with meter_call("openai", model or self.model, self.prices) as meter:
                 response = await self.client.chat.completions.create(
                     model=model or self.model,
                     messages=[
@@ -76,7 +81,7 @@ class OpenAIService(BaseLLMService, ConfigurableMixin):
     async def process_text_chunks_structured(self, text_chunks: list[str], instruction: str, output_type: type[BaseModel], model: str | None = None) -> list[BaseModel]:
 
         async def process_single_chunk(text_chunk: str) -> BaseModel:
-            with meter_call("openai", model or self.model) as meter:
+            with meter_call("openai", model or self.model, self.prices) as meter:
                 response = await self.client.responses.parse(
                     model=model or self.model,
                     instructions=instruction,

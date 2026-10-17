@@ -135,7 +135,12 @@ print(usage.summary())   # LLMUsage
 | `cost_source` | `reported` (provider returned it, e.g. OpenRouter `usage.cost`), `estimated` (reported tokens × configured `prices`), `unknown` |
 
 Failed and cancelled attempts are recorded with unknown usage and cost because the
-provider may have billed them. No prompts, texts or credentials are recorded.
+provider may have billed them. No prompts, texts or credentials are recorded, and
+errors are logged only by exception class (and HTTP status), never by message.
+
+`OpenAsyncAPI` retries a rate-limited request at most `rate_limit_retries` times
+(default 3), waiting `pool_interval` seconds before each retry, and then raises the
+`RateLimitError`. Every attempt is metered.
 
 `LLMUsage` aggregates the calls: `attempted_calls`, `completed_calls`,
 `failed_calls` (error or cancelled), `calls`.
@@ -153,7 +158,8 @@ provider may have billed them. No prompts, texts or credentials are recorded.
 | `candidates_truncated` | Retrieval found more eligible candidates than the limit |
 | `usage` | `LLMUsage` of all calls of the stream |
 
-Cost estimates use server-side prices configured on the LLM service:
+Cost estimates use server-side prices configured on the LLM service
+(`OpenAsyncAPI`, `OllamaAsyncAPI` and `OpenAIService` all accept `prices`):
 
 ```yaml
 llm_service:
@@ -161,6 +167,7 @@ llm_service:
   config:
     default_model: "gpt-5.4-mini"
     provider: "openrouter"          # optional, reported in usage (default: openai)
+    rate_limit_retries: 3            # optional, retries of a rate-limited request
     prices:                          # optional, USD per million tokens
       gpt-5.4-mini: {input_per_million: 0.25, output_per_million: 2.0}
 ```
