@@ -196,6 +196,12 @@ def rate_limit_error():
     return RateLimitError(message="Rate limit", response=MagicMock(status_code=429), body=None)
 
 
+def test_default_rate_limit_retry_interval():
+    with patch("topicer.llm.api_async.AsyncOpenAI"):
+        api = OpenAsyncAPI(api_key="dummy")
+    assert api.pool_interval == 5
+
+
 async def test_persistent_rate_limit_gives_up_after_retry_budget(open_api):
     open_api.rate_limit_retries = 2
     open_api.client.responses.parse.side_effect = rate_limit_error()
