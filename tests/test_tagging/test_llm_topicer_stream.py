@@ -226,3 +226,27 @@ async def test_closing_stream_cancels_outstanding_calls(caplog):
     assert leaked == []
     assert "closed before its usage summary was delivered" in caplog.text
     assert "attempted_calls=3" in caplog.text
+
+
+SECRET = "SECRET document text and prompt"
+
+
+async def test_chunk_failure_log_has_no_exception_message(caplog):
+    db, provider = FakeDB(2), FakeProvider()
+    topicer = make_topicer(db, provider)
+    topicer.llm_service.client.responses.parse.side_effect = RuntimeError(SECRET)
+    _, summary = await run_stream(topicer, max_chunks=40)
+
+    assert summary.status == "failed"
+    assert "RuntimeError" in caplog.text and "llm_inference" in caplog.text
+    assert SECRET not in caplog.text
+
+
+async def test_retrieval_failure_log_has_no_exception_message(caplog):
+    db, provider = FakeDB(2), FakeProvider()
+    db.find_similar_text_chunks = AsyncMock(side_effect=RuntimeError(SECRET))
+    _, summary = await run_stream(make_topicer(db, provider), max_chunks=40)
+
+    assert summary.status == "failed"
+    assert "RuntimeError" in caplog.text and "retrieval" in caplog.text
+    assert SECRET not in caplog.text

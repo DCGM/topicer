@@ -4,7 +4,7 @@ from contextlib import aclosing
 from typing import AsyncGenerator
 from topicer.base import BaseTopicer, MissingServiceError
 from topicer.schemas import TextChunk, Tag, TagSpanProposal, TextChunkWithTagSpanProposals, TagProposalUsageSummary
-from topicer.llm.usage import UsageCollector, collect_usage
+from topicer.llm.usage import UsageCollector, collect_usage, describe_exception
 from topicer.tagging.tagging_schemas import LLMTagProposalList
 import logging
 from topicer.schemas import DBRequest
@@ -221,6 +221,7 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
                                           max_chunks_source=limit_source)
         failed_chunks = 0
         delivered = False
+        stage = "embedding"
         try:
             try:
                 query_parts = [tag.name]
@@ -233,6 +234,7 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
                 tag_embedding = self.embedding_service.embed_queries([query_text])[0]
 
                 # One extra candidate tells whether the limit actually excluded eligible chunks.
+                stage = "retrieval"
                 async with self.db_connection as db_conn:
                     text_chunks: list[TextChunk] = await db_conn.find_similar_text_chunks(
                         text=tag.name,
@@ -248,20 +250,23 @@ class LLMTopicer(BaseTopicer, ConfigurableMixin):
                 if not text_chunks:
                     logging.info(f"No similar text chunks found for tag '{tag.name}' in the database.")
 
+                stage = "llm_inference"
                 # aclosing: closing this stream (client disconnect) cancels the in-flight LLM calls immediately
                 async with aclosing(self._propose_tags_bounded(text_chunks, tag, collector)) as results:
                     async for result in results:
                         summary.processed_chunks += 1
                         if isinstance(result, Exception):
                             failed_chunks += 1
-                            logging.error(f"Tag proposal failed for a chunk of tag {tag.id}: {result!r}")
+                            logging.error(f"Tag proposal failed for a chunk of tag {tag.id} at stage llm_inference: "
+                                          f"{describe_exception(result)}")
                         elif result.tag_span_proposals:
                             yield result
 
                 if failed_chunks:
                     summary.status = "failed" if failed_chunks == summary.processed_chunks else "partial"
             except Exception as e:
-                logging.exception(f"Tag proposal stream for tag {tag.id} failed: {e!r}")
+                # No message or traceback: provider and DB errors may embed prompts or document text.
+                logging.error(f"Tag proposal stream for tag {tag.id} failed at stage {stage}: {describe_exception(e)}")
                 summary.status = "failed"
 
             summary.limit_reached = limit is not None and summary.processed_chunks >= limit

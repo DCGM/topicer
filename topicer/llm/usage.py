@@ -50,6 +50,19 @@ def record_call(call: LLMCallUsage) -> None:
         collector.record(call)
 
 
+def describe_exception(exc: BaseException) -> str:
+    """
+    Safe description of an exception for logs: its class and, for provider errors, the HTTP status code.
+
+    The message is left out because provider errors may embed prompts, response bodies or document text.
+    """
+    description = type(exc).__name__
+    status_code = getattr(exc, "status_code", None)
+    if isinstance(status_code, int):
+        description += f" (status {status_code})"
+    return description
+
+
 def _int_or_none(value: Any) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 

@@ -4,7 +4,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException, Query, status, Depends
 from fastapi.responses import RedirectResponse, StreamingResponse
 
-from topicer.llm.usage import collect_usage
+from topicer.llm.usage import collect_usage, describe_exception
 from topicer.schemas import (DBRequest, DiscoveredTopics, DiscoveredTopicsSparse, Tag, TextChunk,
                              TextChunkWithTagSpanProposals, TextChunkWithTagSpanProposalsAndUsage)
 from topicer_api.topicers import LoadedTopicers, get_loaded_topicers
@@ -241,7 +241,7 @@ async def propose_tags_in_db_stream(
             async for result in topicer_model.propose_tags_in_db_stream(tag=tag, db_request=db_request, max_chunks=max_chunks):
                 yield result.model_dump_json() + "\n"
         except Exception as e:
-            logger.error(f"Error during streaming tag proposal for config {config_name}: {e}")
+            logger.error(f"Error during streaming tag proposal for config {config_name}: {describe_exception(e)}")
             raise
 
     return StreamingResponse(generate(), media_type="application/x-ndjson")

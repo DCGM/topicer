@@ -29,6 +29,11 @@ class APIAsync(BaseLLMService, CreatableMixin):
         user_default=1,
         voluntary=True,
         validator=lambda x: x is None or x >= 0)
+    rate_limit_retries: int = ConfigurableValue(
+        desc="Maximum number of retries of a rate-limited request (each waits pool_interval seconds); "
+             "the RateLimitError is raised when they are exhausted.",
+        user_default=3, voluntary=True, validator=lambda x: isinstance(x, int) and x >= 0
+    )
     concurrency: int = ConfigurableValue(
         desc="Maximum number of concurrent requests to the API. This is used with async processing.",
         user_default=10, voluntary=True, validator=MinValueIntegerValidator(1)
@@ -139,6 +144,7 @@ class OpenAsyncAPI(APIAsync):
 
     async def process_single_request(self, text_chunk: str, instruction: str, output_type: Type[BaseModel] | None, model: str) -> str | BaseModel:
         async with self.semaphore:
+            retries = 0
             while True:
                 try:
                     with meter_call(self.provider_name, model, self.prices) as meter:
@@ -158,7 +164,12 @@ class OpenAsyncAPI(APIAsync):
                         meter.success(*openai_usage(response))
                     return response.output_text if output_type is None else response.output_parsed
                 except RateLimitError:
-                    logging.error(f"Rate limit reached. Waiting for {self.pool_interval} seconds.")
+                    # Each attempt is metered; the retry budget bounds the duration and number of attempts.
+                    if retries >= self.rate_limit_retries:
+                        logging.error(f"Rate limit reached, giving up after {retries} retries.")
+                        raise
+                    retries += 1
+                    logging.error(f"Rate limit reached. Retry {retries}/{self.rate_limit_retries} in {self.pool_interval} seconds.")
                     await asyncio.sleep(self.pool_interval)
 
 
