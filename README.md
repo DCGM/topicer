@@ -46,6 +46,25 @@ pip install git+https://github.com/DCGM/topicer@TAG
 Available releases are listed at:
 [https://github.com/DCGM/topicer/tags](https://github.com/DCGM/topicer/tags)
 
+### Versions and releases
+
+Releases are git tags `vX.Y.Z` on `main` with a GitHub release; the tag matches `version` in
+`pyproject.toml`. Deployments (e.g. semANT) build a tag, not `main`.
+
+To release:
+
+1. Bump `version` in `pyproject.toml` in a PR (minor for new features or breaking
+   changes while below 1.0, patch for fixes) and merge it.
+2. Tag the merge commit and publish the release notes (the full 40-character SHA; a short one
+   is rejected):
+
+   ```bash
+   gh release create vX.Y.Z --target <full SHA> --title vX.Y.Z --notes-file <notes> --latest
+   ```
+
+3. In the deployment, set the new tag and rebuild (semANT: `TOPICER_VERSION` in
+   `deploy/docker-compose.topicer*.yml`).
+
 ---
 
 ## Usage Overview
@@ -318,6 +337,9 @@ cd deploy
 ./update.sh build
 ./update.sh up
 ```
+
+The image builds `main` by default; build a release instead with
+`BRANCH_NAME=v0.1.0 ./update.sh build`.
 
 The API will be available at:
 
